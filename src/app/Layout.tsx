@@ -13,7 +13,12 @@ const TABS = [
 export function Layout() {
   const { pathname } = useLocation()
   // Chaque nouvel écran s'ouvre en haut de page.
-  useEffect(() => window.scrollTo(0, 0), [pathname])
+  // Accolades obligatoires : un effet ne doit renvoyer qu'une fonction de nettoyage (ou rien).
+  // Renvoyer le résultat de scrollTo (une Promise dans certains navigateurs) fait planter React
+  // au changement d'écran : « TypeError: destroy is not a function ».
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
 
   return (
     <div className="min-h-dvh">
