@@ -7,8 +7,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-BG = (194, 86, 43)
-FG = (251, 247, 240)
+BG = (31, 77, 58)
+FG = (248, 244, 236)
 OUT = Path(__file__).resolve().parent.parent / "public"
 
 

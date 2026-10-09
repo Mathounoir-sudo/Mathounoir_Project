@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { Button } from '../components/Button'
 
 /** Prévient l'utilisateur quand une nouvelle version de l'app est disponible. */
 export function UpdatePrompt() {
@@ -16,28 +17,28 @@ export function UpdatePrompt() {
     return () => clearTimeout(timer)
   }, [offlineReady, setOfflineReady])
 
-  if (needRefresh) {
-    return (
-      <div className="toast" role="status">
-        <span>Une nouvelle version de Mijoté est disponible.</span>
-        <button className="btn btn-small" onClick={() => void updateServiceWorker(true)}>
+  if (!needRefresh && !offlineReady) return null
+  return (
+    <div
+      role="status"
+      className="fixed inset-x-4 bottom-[calc(80px+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md flex-wrap items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm text-bg shadow-lg"
+    >
+      <span className="flex-1 basis-full">
+        {needRefresh ? 'Une nouvelle version de Mijoté est disponible.' : 'Mijoté fonctionne maintenant hors connexion.'}
+      </span>
+      {needRefresh && (
+        <Button size="sm" variant="accent" onClick={() => void updateServiceWorker(true)}>
           Mettre à jour
-        </button>
-        <button className="btn btn-small btn-ghost" onClick={() => setNeedRefresh(false)}>
-          Plus tard
-        </button>
-      </div>
-    )
-  }
-  if (offlineReady) {
-    return (
-      <div className="toast" role="status">
-        <span>Mijoté fonctionne maintenant hors connexion.</span>
-        <button className="btn btn-small btn-ghost" onClick={() => setOfflineReady(false)}>
-          OK
-        </button>
-      </div>
-    )
-  }
-  return null
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="!text-bg"
+        onClick={() => (needRefresh ? setNeedRefresh(false) : setOfflineReady(false))}
+      >
+        {needRefresh ? 'Plus tard' : 'OK'}
+      </Button>
+    </div>
+  )
 }

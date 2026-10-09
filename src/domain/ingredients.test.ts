@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildMatchers, matchIngredient } from './ingredients'
-import { INGREDIENTS } from '../data/ingredients'
-import { RECIPES } from '../data/recipes'
+import { buildMatchers, matchIngredient, searchCatalog } from './ingredients'
+import { CATALOG } from '../data/catalog'
 
-const matchers = buildMatchers(INGREDIENTS)
+const matchers = buildMatchers(CATALOG)
 
 describe('matchIngredient', () => {
   it.each([
@@ -29,15 +28,21 @@ describe('matchIngredient', () => {
   })
 })
 
-describe('données', () => {
-  it('chaque ingrédient de recette existe dans le catalogue', () => {
-    const ids = new Set(INGREDIENTS.map((i) => i.id))
-    for (const r of RECIPES) {
-      for (const ri of r.ingredients) expect(ids, `${r.id} → ${ri.ingredientId}`).toContain(ri.ingredientId)
-    }
+describe('searchCatalog', () => {
+  it('trouve par début de mot, sans accents', () => {
+    expect(searchCatalog('epi', CATALOG).map((i) => i.id)).toContain('epinard')
+    expect(searchCatalog('terre', CATALOG).map((i) => i.id)).toContain('pomme-de-terre')
   })
+  it('passe aussi par les synonymes', () => {
+    expect(searchCatalog('emmental', CATALOG).map((i) => i.id)).toEqual(['fromage-rape'])
+  })
+  it('ne renvoie rien pour une recherche vide', () => {
+    expect(searchCatalog('  ', CATALOG)).toEqual([])
+  })
+})
+
+describe('catalogue', () => {
   it('les identifiants sont uniques', () => {
-    expect(new Set(INGREDIENTS.map((i) => i.id)).size).toBe(INGREDIENTS.length)
-    expect(new Set(RECIPES.map((r) => r.id)).size).toBe(RECIPES.length)
+    expect(new Set(CATALOG.map((i) => i.id)).size).toBe(CATALOG.length)
   })
 })

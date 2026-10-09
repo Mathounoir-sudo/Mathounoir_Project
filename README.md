@@ -1,64 +1,104 @@
 # Mijoté 🍲
 
-Application web mobile **installable** (PWA) de cuisine anti-gaspillage :
-notez ce que vous avez au frigo, Mijoté vous montre ce qui doit être consommé
-en priorité et les recettes qui permettent de l'utiliser.
+> Nom provisoire, non vérifié sur le plan des marques.
 
-- **Sans compte, sans serveur, sans clé API** : tout est stocké sur le téléphone (IndexedDB).
-- **Fonctionne hors connexion** après la première visite.
-- Sauvegarde / restauration manuelle en fichier JSON (écran Réglages).
+Application web mobile **installable** (PWA) de cuisine anti-gaspillage pour les personnes seules ou en couple :
+**« Cuisinez quelque chose de bon avec ce que vous avez déjà. »**
 
-## Utiliser l'application
+Inventaire → Priorités → Recette faisable → Cuisiner → Restes → Recommencer.
 
-Une fois déployée : https://mathounoir-sudo.github.io/Mathounoir_Project/
+## État actuel : phase 1 (fondations)
 
-- **Android (Chrome)** : menu ⋮ → « Installer l'application ».
-- **iPhone (Safari)** : bouton Partager → « Sur l'écran d'accueil ».
-
-## Commandes utiles
-
-Prérequis : Node.js 22 ou plus.
-
-| Commande | Rôle |
+| Fonctionnalité | État |
 |---|---|
-| `npm install` | Installe les dépendances (une fois) |
-| `npm run dev` | Lance l'app en local avec rechargement automatique |
-| `npm test` | Tests de la logique (rapides) |
-| `npm run e2e` | Tests dans un vrai navigateur (Playwright) |
-| `npm run check` | Tout vérifier : lint, types, tests, build |
-| `npm run build` | Produit la version à publier dans `dist/` |
-| `npm run icons` | Régénère les icônes PNG (nécessite Python + Pillow) |
+| Accueil : ingrédients suivis, priorités, actions principales, recettes | ✅ |
+| Inventaire : ajouter, rechercher dans le catalogue, modifier, supprimer, + / −, vue par catégorie ou par priorité | ✅ |
+| État (non entamé, entamé, reste cuisiné, congelé), rangement, dates d'achat / d'ouverture | ✅ |
+| Dates DLC / DDM / « type inconnu », jamais devinées | ✅ |
+| Priorités anti-gaspi expliquées (raison affichée pour chaque produit) | ✅ |
+| Basiques (sel, huile…) confirmés explicitement, jamais supposés | ✅ |
+| Recettes de démonstration validées (Zod), disponibilité réelle, mode « uniquement ce que j'ai » | ✅ |
+| Détail recette : portions, préparation, cuisson, total, quantités, étapes, sécurité, conservation | ✅ |
+| Recettes enregistrées (favoris) | ✅ |
+| Sauvegarde / restauration JSON, données de démo retirables | ✅ |
+| Hors connexion, installable, mise à jour signalée | ✅ |
+| **Reconnaissance photo** | ⏳ Non configurée : l'écran l'explique et propose la saisie manuelle |
+| **Génération de recettes par IA** | ⏳ Non configurée : 12 recettes de démonstration fixes |
+| Réglage des portions, mode cuisine, minuteurs, suivi des restes et historique des mouvements | ⏳ Phase 2 |
+| Exclusions / allergies | ⏳ Phase 2 |
+| Compte, synchronisation (Supabase) | ⏳ Phase 4 |
+
+Aucune clé d'API, aucun compte, aucun serveur : tout est stocké sur l'appareil (IndexedDB).
+
+## Lancer l'application
+
+Prérequis : **Node.js 22.12 ou plus** (`node --version`).
+
+```bash
+npm install          # une seule fois : installe les dépendances
+npm run dev          # lance l'app : ouvrez l'adresse affichée (http://localhost:5173)
+```
+
+Pour l'essayer sur un téléphone du même réseau Wi-Fi : `npm run dev -- --host`, puis ouvrez l'adresse
+« Network » affichée. (L'installation comme application et le mode hors connexion ne fonctionnent
+qu'en HTTPS, donc une fois l'app déployée.)
+
+Pour essayer la version de production en local :
+
+```bash
+npm run build && npm run preview   # http://localhost:4173
+```
+
+## Tester
+
+```bash
+npm run check   # tout : lint + vérification TypeScript + tests unitaires + build
+npm test        # tests unitaires uniquement (Vitest)
+npm run e2e     # parcours complets dans un vrai navigateur (Playwright)
+```
+
+Si Playwright n'a pas encore de navigateur sur votre machine : `npx playwright install chromium` (une fois).
 
 ## Organisation du code
 
 ```
 src/
-├─ app/          démarrage, navigation, barre d'onglets, message de mise à jour
-├─ features/     un dossier par écran : pantry (garde-manger), recipes, settings
-├─ data/         base locale (db.ts), catalogue d'ingrédients, recettes intégrées
-├─ domain/       logique pure, sans React, entièrement testée
-│                (dates limites, reconnaissance d'ingrédients, suggestions, sauvegarde)
-└─ ui/           petits composants réutilisables
-e2e/             tests de bout en bout
+├─ app/            démarrage, navigation, écran si le stockage est bloqué, mise à jour PWA
+├─ components/     composants d'interface réutilisables et accessibles (boutons, champs, messages…)
+├─ features/       un dossier par écran : home, inventory, recipes, photo-recognition, settings
+├─ domain/         règles métier pures, sans React, testées :
+│                  priorités et sécurité (priority.ts), recettes faisables (matching.ts),
+│                  quantités, dates, validation Zod (schemas.ts), sauvegarde, migrations
+├─ services/       accès aux données (inventaire, recettes, préférences, sauvegarde)
+├─ lib/            base locale Dexie, messages d'erreur compréhensibles
+├─ hooks/          lecture des données en temps réel
+├─ data/           catalogue d'ingrédients, recettes et ingrédients de démonstration
+├─ i18n/           libellés français (une autre langue = un autre fichier)
+└─ styles/         Tailwind CSS et couleurs (clair / sombre)
+e2e/               parcours utilisateur testés dans Chromium
 ```
 
-### Ajouter une recette
+### Règles importantes
 
-Éditer `src/data/recipes.ts`. Chaque ingrédient fait référence à un `id` de
-`src/data/ingredients.ts` (un test vérifie que tous les ids existent).
+- **Sécurité alimentaire** : seule une DLC dépassée déclenche « Ne pas consommer » ; une DDM dépassée n'est pas
+  traitée comme une DLC ; une date de type inconnu dépassée demande une vérification. Les produits concernés ne sont
+  jamais proposés dans les recettes. L'app ne juge jamais la fraîcheur d'un produit.
+- **Rien n'est inventé** : pas de date, quantité ou valeur nutritionnelle devinée ; sans information, la priorité
+  est affichée comme « incertaine ».
+- **Recettes** : validées par `recipeSchema` avant affichage ; une recette invalide est écartée sans faire planter l'app.
+  « Rien à acheter » n'est affiché que si chaque ingrédient obligatoire est présent en quantité suffisante.
+- **Base locale** : pour changer la structure, ajouter une nouvelle version Dexie avec migration
+  (voir `src/lib/db.ts`) ; ne jamais modifier une version existante.
 
-### Modifier la structure des données
+### Ajouter une recette de démonstration
 
-Voir le commentaire en tête de `src/data/db.ts` : ne jamais modifier une version
-existante de la base, toujours en ajouter une nouvelle avec une migration.
+Éditer `src/data/demo-recipes.ts`. Chaque `ingredientId` doit exister dans `src/data/catalog.ts` ;
+les tests vérifient le schéma et les identifiants.
 
 ## Déploiement
 
-Le workflow `.github/workflows/deploy.yml` publie automatiquement sur GitHub Pages
-à chaque mise à jour de la branche `main`.
+Le workflow `.github/workflows/deploy.yml` publie sur GitHub Pages à chaque mise à jour de `main`.
+Activation, une seule fois : **Settings → Pages → Source : « GitHub Actions »**.
 
-Activation (une seule fois) : sur GitHub, **Settings → Pages → Source : « GitHub Actions »**.
-
-⚠️ Les données des utilisateurs sont liées à l'adresse exacte de l'app.
-Changer d'adresse (autre domaine, renommage du dépôt) leur ferait perdre leur
-garde-manger : il faudrait alors passer par l'export / import.
+⚠️ Les données des utilisateurs sont liées à l'adresse exacte de l'app : changer d'adresse leur ferait perdre
+leur inventaire (sauf export / import).

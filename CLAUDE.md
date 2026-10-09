@@ -1,6 +1,7 @@
 # Mijoté — notes pour l'assistant
 
-PWA React 19 + TypeScript + Vite 8, 100 % locale (Dexie/IndexedDB), en français.
+PWA React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + Zod, 100 % locale (Dexie/IndexedDB), en français.
+Cahier des charges par phases : phase 1 terminée (voir README). Ne pas commencer une phase avant que la précédente passe ses tests.
 L'utilisateur débute : expliquer simplement, en français, et travailler par petites étapes testées.
 
 ## Vérifications avant chaque commit
@@ -9,7 +10,11 @@ L'utilisateur débute : expliquer simplement, en français, et travailler par pe
   (Playwright est épinglé en 1.56.1 pour réutiliser ce Chromium préinstallé).
 
 ## Règles
-- Logique métier dans `src/domain/` (pure, testée avec Vitest) ; les écrans dans `src/features/`.
+- Logique métier dans `src/domain/` (pure, testée avec Vitest) ; accès aux données dans `src/services/` ; écrans dans `src/features/`.
+- Sécurité alimentaire : ne jamais inventer de date, quantité ou valeur nutritionnelle ; DLC ≠ DDM ; ne jamais supposer un ingrédient présent (basiques confirmés par l'utilisateur).
+- Ne jamais afficher une fonction IA comme active si elle n'est pas configurée ; pas de bouton sans effet.
+- Toute recette (démo ou future IA) passe par `validateRecipes` / `recipeSchema` avant affichage.
+- Erreurs de stockage : passer par `withStorage` (messages en français) et `useToast().run`.
 - Schéma Dexie : ajouter une nouvelle `version(N+1)` avec migration, ne jamais modifier une version existante.
 - Les `id` d'ingrédients et de recettes sont stables : ne pas les renommer.
 - Navigation par HashRouter (`/#/...`) pour GitHub Pages ; ne pas changer sans plan de redirection.

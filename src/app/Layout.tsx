@@ -1,28 +1,55 @@
-import { NavLink, Outlet } from 'react-router'
+import { NavLink, Outlet, useLocation } from 'react-router'
+import { useEffect } from 'react'
+import { ChefHat, House, Refrigerator, Settings } from 'lucide-react'
 import { UpdatePrompt } from './UpdatePrompt'
 
 const TABS = [
-  { to: '/', label: 'Garde-manger', icon: '🧺', end: true },
-  { to: '/recettes', label: 'Recettes', icon: '🍲', end: false },
-  { to: '/reglages', label: 'Réglages', icon: '⚙️', end: false },
+  { to: '/', label: 'Accueil', icon: House, end: true },
+  { to: '/inventaire', label: 'Inventaire', icon: Refrigerator, end: false },
+  { to: '/recettes', label: 'Recettes', icon: ChefHat, end: false },
+  { to: '/reglages', label: 'Réglages', icon: Settings, end: false },
 ]
 
 export function Layout() {
+  const { pathname } = useLocation()
+  // Chaque nouvel écran s'ouvre en haut de page.
+  useEffect(() => window.scrollTo(0, 0), [pathname])
+
   return (
-    <div className="app">
-      <main className="app-main">
+    <div className="min-h-dvh">
+      <a href="#contenu" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-card focus:px-4 focus:py-2">
+        Aller au contenu
+      </a>
+      <main id="contenu" className="mx-auto max-w-xl px-4 pb-[calc(112px+env(safe-area-inset-bottom))] pt-[calc(20px+env(safe-area-inset-top))]">
         <Outlet />
       </main>
       <UpdatePrompt />
-      <nav className="tabbar" aria-label="Navigation principale">
-        {TABS.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.end} className="tab">
-            <span aria-hidden="true" className="tab-icon">
-              {tab.icon}
-            </span>
-            {tab.label}
-          </NavLink>
-        ))}
+      <nav
+        aria-label="Navigation principale"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+      >
+        <ul className="mx-auto flex max-w-xl">
+          {TABS.map(({ to, label, icon: Icon, end }) => (
+            <li key={to} className="flex-1">
+              <NavLink
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `flex h-16 flex-col items-center justify-center gap-1 text-xs font-semibold ${isActive ? 'text-primary' : 'text-muted'}`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <span className={`flex h-7 w-14 items-center justify-center rounded-full ${isActive ? 'bg-primary-soft' : ''}`}>
+                      <Icon className="size-5" aria-hidden="true" strokeWidth={isActive ? 2.25 : 1.75} />
+                    </span>
+                    {label}
+                  </>
+                )}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
       </nav>
     </div>
   )

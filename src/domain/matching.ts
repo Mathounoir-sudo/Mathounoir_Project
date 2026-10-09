@@ -1,70 +1,107 @@
-import type { Ingredient, PantryItem, Recipe } from './types'
-import { expiryStatus, todayISO, type ExpiryStatus } from './dates'
+import type { CatalogIngredient, InventoryItem, Recipe, RecipeIngredient } from './types'
+import { computePriority } from './priority'
+import { todayISO } from './dates'
+
+export type LineStatus =
+  /** Présent dans l'inventaire en quantité suffisante (ou basique confirmé). */
+  | 'available'
+  /** Présent mais quantité insuffisante (même unité). */
+  | 'insufficient'
+  /** Présent, mais quantité inconnue ou unités différentes : à vérifier. */
+  | 'unverified'
+  /** Absent de l'inventaire. */
+  | 'missing'
+
+export interface RecipeLine {
+  ingredient: RecipeIngredient
+  status: LineStatus
+  items: InventoryItem[]
+  /** Quantité disponible, quand elle est comparable à celle demandée. */
+  have: number | null
+}
 
 export interface RecipeMatch {
   recipe: Recipe
-  /** Ingrédients obligatoires absents du garde-manger. */
-  missing: string[]
-  /** Produits du garde-manger que la recette permet d'utiliser. */
-  used: PantryItem[]
-  /** Plus le score est haut, plus la recette aide à éviter le gaspillage. */
-  urgency: number
-  canCook: boolean
+  lines: RecipeLine[]
+  /** Ingrédients obligatoires absents ou en quantité insuffisante. */
+  missing: RecipeLine[]
+  /** Ingrédients présents dont la quantité ne peut pas être vérifiée. */
+  unverified: RecipeLine[]
+  /** Produits prioritaires que la recette permet d'utiliser. */
+  usesPriority: InventoryItem[]
+  /** Nombre de produits de l'inventaire utilisés (hors basiques). */
+  usedCount: number
+  /** Vrai seulement si tous les ingrédients obligatoires sont présents en quantité suffisante ou à vérifier. */
+  feasible: boolean
+  score: number
 }
 
-const URGENCY_WEIGHT: Record<ExpiryStatus, number> = {
-  expired: 5,
-  today: 5,
-  soon: 3,
-  ok: 1,
-  unknown: 1,
+export interface MatchOptions {
+  /** Basiques (sel, huile…) que l'utilisateur a confirmé avoir. */
+  staples: ReadonlySet<string>
+  today?: string
+}
+
+/** Les produits à ne pas consommer ou à vérifier ne sont jamais proposés, ni les produits épuisés. */
+export function usableItems(inventory: InventoryItem[], today: string): InventoryItem[] {
+  return inventory.filter((i) => i.quantity !== 0 && computePriority(i, today).safety === 'ok')
+}
+
+export function matchRecipe(
+  recipe: Recipe,
+  inventory: InventoryItem[],
+  catalog: ReadonlyMap<string, CatalogIngredient>,
+  { staples, today = todayISO() }: MatchOptions,
+): RecipeMatch {
+  const usable = usableItems(inventory, today)
+  const lines: RecipeLine[] = recipe.ingredients.map((ri) => {
+    const isStaple = catalog.get(ri.ingredientId)?.category === 'staple'
+    const items = usable.filter((i) => i.ingredientId === ri.ingredientId)
+    if (items.length === 0) {
+      return { ingredient: ri, items, have: null, status: isStaple && staples.has(ri.ingredientId) ? 'available' : 'missing' }
+    }
+    if (ri.quantity === null) return { ingredient: ri, items, have: null, status: 'available' }
+    const comparable = items.filter((i) => i.quantity !== null && i.unit === ri.unit)
+    if (comparable.length === 0) return { ingredient: ri, items, have: null, status: 'unverified' }
+    const have = comparable.reduce((sum, i) => sum + (i.quantity ?? 0), 0)
+    if (have >= ri.quantity) return { ingredient: ri, items, have, status: 'available' }
+    // Une partie des produits a une autre unité : on ne peut pas conclure.
+    if (comparable.length < items.length) return { ingredient: ri, items, have, status: 'unverified' }
+    return { ingredient: ri, items, have, status: 'insufficient' }
+  })
+
+  const required = lines.filter((l) => !l.ingredient.optional)
+  const missing = required.filter((l) => l.status === 'missing' || l.status === 'insufficient')
+  const unverified = lines.filter((l) => l.status === 'unverified')
+  const used = lines.flatMap((l) => l.items)
+  const usesPriority = used.filter((i) => {
+    const level = computePriority(i, today).level
+    return level === 'high' || level === 'medium'
+  })
+  const feasible = missing.length === 0
+  const urgency = usesPriority.reduce((s, i) => s + computePriority(i, today).score, 0)
+  const score =
+    (feasible ? 100_000 : 0) + urgency * 10 - missing.length * 1_000 + used.length * 50 - (recipe.prepMinutes + recipe.cookMinutes)
+
+  return { recipe, lines, missing, unverified, usesPriority, usedCount: used.length, feasible, score }
 }
 
 /**
- * Classe les recettes selon ce qu'il y a dans le garde-manger :
- * d'abord celles qu'on peut cuisiner tout de suite, puis celles qui utilisent
- * les produits les plus urgents, puis celles où il manque le moins de choses.
- * Les ingrédients de base (sel, huile, eau…) sont supposés toujours disponibles.
+ * Classe les recettes : faisables d'abord, puis celles qui utilisent les produits prioritaires,
+ * puis celles où il manque le moins de choses, puis les plus rapides.
+ * Les recettes qui n'utilisent aucun produit de l'inventaire sont écartées.
+ * En mode strict, seules les recettes faisables sans courses sont gardées.
  */
-export function matchRecipes(
+export function suggestRecipes(
   recipes: Recipe[],
-  pantry: PantryItem[],
-  catalog: ReadonlyMap<string, Ingredient>,
-  today: string = todayISO(),
+  inventory: InventoryItem[],
+  catalog: ReadonlyMap<string, CatalogIngredient>,
+  options: MatchOptions & { strict?: boolean },
 ): RecipeMatch[] {
-  const byIngredient = new Map<string, PantryItem[]>()
-  for (const item of pantry) {
-    if (!item.ingredientId) continue
-    const list = byIngredient.get(item.ingredientId) ?? []
-    list.push(item)
-    byIngredient.set(item.ingredientId, list)
-  }
-  const isBase = (id: string) => catalog.get(id)?.category === 'base'
-
-  const matches: RecipeMatch[] = []
-  for (const recipe of recipes) {
-    const missing: string[] = []
-    const used: PantryItem[] = []
-    let urgency = 0
-    for (const ri of recipe.ingredients) {
-      if (isBase(ri.ingredientId)) continue
-      const items = byIngredient.get(ri.ingredientId)
-      if (items && items.length > 0) {
-        used.push(...items)
-        urgency += Math.max(...items.map((i) => URGENCY_WEIGHT[expiryStatus(i.expiresOn, today)]))
-      } else if (!ri.optional) {
-        missing.push(ri.ingredientId)
-      }
-    }
-    if (used.length === 0) continue
-    matches.push({ recipe, missing, used, urgency, canCook: missing.length === 0 })
-  }
-
-  return matches.sort(
-    (a, b) =>
-      Number(b.canCook) - Number(a.canCook) ||
-      b.urgency - a.urgency ||
-      a.missing.length - b.missing.length ||
-      a.recipe.title.localeCompare(b.recipe.title, 'fr'),
-  )
+  return recipes
+    .map((r) => matchRecipe(r, inventory, catalog, options))
+    .filter((m) => m.usedCount > 0 && (!options.strict || m.feasible))
+    .sort((a, b) => b.score - a.score || a.recipe.title.localeCompare(b.recipe.title, 'fr'))
 }
+
+export const totalMinutes = (r: Recipe) => r.prepMinutes + r.cookMinutes

@@ -1,36 +1,57 @@
 import { describe, expect, it } from 'vitest'
 import { createBackup, parseBackup } from './backup'
-import type { PantryItem } from './types'
+import { makeItem } from './test-helpers'
+import type { Category } from './types'
 
-const sample: PantryItem = {
-  id: 'a1',
-  name: 'Tomates',
-  ingredientId: 'tomate',
-  quantity: 3,
-  unit: 'pièce',
-  location: 'frigo',
-  expiresOn: '2026-04-01',
-  createdAt: '2026-03-30T10:00:00.000Z',
-  updatedAt: '2026-03-30T10:00:00.000Z',
-}
+const categoryOf = (id: string | null): Category => (id === 'tomate' ? 'vegetable' : 'other')
 
 describe('sauvegarde', () => {
+  const item = makeItem({ id: 'a1', name: 'Tomates', ingredientId: 'tomate', category: 'vegetable' })
+
   it('fait un aller-retour sans perte', () => {
-    const json = JSON.stringify(createBackup([sample]))
-    expect(parseBackup(json).pantry).toEqual([sample])
+    const backup = createBackup({ inventory: [item], staples: ['sel'], favorites: ['omelette'] })
+    expect(parseBackup(JSON.stringify(backup), categoryOf)).toEqual(backup)
   })
-  it('refuse un fichier qui n’est pas du JSON', () => {
-    expect(() => parseBackup('pas du json')).toThrow(/pas une sauvegarde/)
+
+  it('convertit une sauvegarde de la version précédente sans inventer de type de date', () => {
+    const v1 = {
+      format: 'mijote-backup',
+      version: 1,
+      exportedAt: '',
+      pantry: [
+        {
+          id: 'x',
+          name: 'Tomates',
+          ingredientId: 'tomate',
+          quantity: 3,
+          unit: 'pièce',
+          location: 'frigo',
+          expiresOn: '2026-04-01',
+          createdAt: 'c',
+          updatedAt: 'u',
+        },
+      ],
+    }
+    const [migrated] = parseBackup(JSON.stringify(v1), categoryOf).inventory
+    expect(migrated).toMatchObject({
+      unit: 'unité',
+      location: 'fridge',
+      category: 'vegetable',
+      status: 'unopened',
+      dateLabel: { kind: 'unspecified', date: '2026-04-01' },
+    })
   })
-  it('refuse un autre format', () => {
-    expect(() => parseBackup('{"hello":1}')).toThrow(/pas une sauvegarde Mijoté/)
+
+  it.each([
+    ['pas du json', /pas lisible/],
+    ['{"hello":1}', /pas une sauvegarde Mijoté/],
+    [JSON.stringify({ format: 'mijote-backup', version: 99 }), /plus récente/],
+  ])('refuse %s', (json, message) => {
+    expect(() => parseBackup(json, categoryOf)).toThrow(message)
   })
-  it('refuse une version future', () => {
-    const json = JSON.stringify({ ...createBackup([]), version: 99 })
-    expect(() => parseBackup(json)).toThrow(/plus récente/)
-  })
-  it('signale un produit invalide', () => {
-    const json = JSON.stringify(createBackup([{ ...sample, unit: 'brouette' } as unknown as PantryItem]))
-    expect(() => parseBackup(json)).toThrow(/n°1/)
+
+  it('signale l’ingrédient invalide et rassure sur les données actuelles', () => {
+    const bad = createBackup({ inventory: [item, { ...item, unit: 'brouette' as never }], staples: [], favorites: [] })
+    expect(() => parseBackup(JSON.stringify(bad), categoryOf)).toThrow(/ingrédient n°2.*intactes/)
   })
 })

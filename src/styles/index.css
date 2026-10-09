@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+/* Jetons de couleur : une seule source, déclinée en mode clair et sombre. */
+:root {
+  --bg: #f8f4ec;
+  --card: #fffdf9;
+  --ink: #1d2420;
+  --muted: #5d655e;
+  --line: #e6dfd2;
+  --primary: #1f4d3a;
+  --primary-hover: #173d2e;
+  --primary-soft: #e3ece5;
+  --on-primary: #ffffff;
+  --accent: #b5502a;
+  --accent-soft: #f7e4d9;
+  --on-accent: #ffffff;
+  --hero: #1f4d3a;
+  --on-hero: #ffffff;
+  --danger: #a3261b;
+  --danger-soft: #fbe4e1;
+  --warn: #7f5300;
+  --warn-soft: #fbefd2;
+  --ok: #2a6843;
+  --ok-soft: #e1eee4;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131714;
+    --card: #1c211d;
+    --ink: #eef0ea;
+    --muted: #a5ada5;
+    --line: #2f3630;
+    --primary: #8acba4;
+    --primary-hover: #a3d8b8;
+    --primary-soft: #213429;
+    --on-primary: #0e1a13;
+    --accent: #e8916a;
+    --accent-soft: #3a251b;
+    --on-accent: #2a140b;
+    --hero: #1f3a2c;
+    --on-hero: #eef0ea;
+    --danger: #ff8f82;
+    --danger-soft: #3b1d1a;
+    --warn: #f0c560;
+    --warn-soft: #352a12;
+    --ok: #8fd3a8;
+    --ok-soft: #1b3023;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-hero: var(--hero);
+  --color-on-hero: var(--on-hero);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+  }
+  h1,
+  h2 {
+    @apply font-display tracking-tight;
+  }
+  /* Évite le zoom automatique de Safari sur les champs. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
