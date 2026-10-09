@@ -14,8 +14,8 @@ import {
   stepQuantity,
   updateItem,
 } from './inventory'
-import { getStaples, toggleStaple } from './preferences'
-import { getFavorites, RECIPE_CATALOG, toggleFavorite, validateRecipes } from './recipes'
+import { getServings, getStaples, setServings, toggleStaple } from './preferences'
+import { findRecipe, getFavorites, RECIPE_CATALOG, toggleFavorite, validateRecipes } from './recipes'
 import { exportBackup, readBackup, restoreBackup } from './backup'
 
 const opened: MijoteDB[] = []
@@ -31,6 +31,7 @@ afterEach(async () => {
 
 const input = (overrides: Partial<InventoryInput> = {}): InventoryInput => ({
   name: 'Tomates cerises',
+  ingredientId: 'tomate',
   category: 'vegetable',
   quantity: 250,
   unit: 'g',
@@ -44,10 +45,10 @@ const input = (overrides: Partial<InventoryInput> = {}): InventoryInput => ({
 })
 
 describe('inventaire', () => {
-  it('ajoute un ingrédient, le relie au catalogue et le marque confirmé', async () => {
+  it('ajoute un ingrédient avec le lien vers le catalogue validé dans le formulaire', async () => {
     const db = freshDb()
     const item = await addItem(input({ name: '  Tomates cerises ' }), db)
-    expect(item).toMatchObject({ name: 'Tomates cerises', ingredientId: 'tomate', source: 'manual', confirmed: true })
+    expect(item).toMatchObject({ name: 'Tomates cerises', ingredientId: 'tomate', source: 'manual', confirmed: true, linkConfirmed: true })
     expect(item.id).toMatch(/^[0-9a-f-]{36}$/)
     expect(await getAllItems(db)).toHaveLength(1)
   })
@@ -55,7 +56,7 @@ describe('inventaire', () => {
   it('modifie un ingrédient (nom, catégorie, quantité, unité, état)', async () => {
     const db = freshDb()
     const item = await addItem(input(), db)
-    await updateItem(item.id, input({ name: 'Courgette', quantity: 2, unit: 'unité', status: 'opened' }), db)
+    await updateItem(item.id, input({ name: 'Courgette', ingredientId: 'courgette', quantity: 2, unit: 'unité', status: 'opened' }), db)
     expect(await getItem(item.id, db)).toMatchObject({ name: 'Courgette', ingredientId: 'courgette', quantity: 2, unit: 'unité', status: 'opened' })
   })
 
@@ -156,6 +157,30 @@ describe('basiques et favoris', () => {
     expect(await getStaples(db)).toEqual(['huile', 'sel'])
     await toggleStaple('sel', db)
     expect(await getStaples(db)).toEqual(['huile'])
+  })
+
+  it('mémorise le nombre de portions et ignore une valeur enregistrée invalide', async () => {
+    const name = `servings-${++counter}`
+    const db = new MijoteDB(name)
+    expect(await getServings(db)).toBe(1)
+    await setServings(2, db)
+    db.close()
+    const reopened = freshDb(name)
+    expect(await getServings(reopened)).toBe(2)
+    await reopened.settings.put({ key: 'servings', value: 'beaucoup' })
+    expect(await getServings(reopened)).toBe(1)
+  })
+
+  it('les favoris survivent à la réouverture ; un favori inconnu est ignoré sans erreur', async () => {
+    const name = `fav-${++counter}`
+    const db = new MijoteDB(name)
+    await toggleFavorite('pain-perdu', db)
+    await db.favorites.put({ recipeId: 'recette-supprimee', savedAt: '2026-01-01T00:00:00.000Z' })
+    db.close()
+    const reopened = freshDb(name)
+    const ids = await getFavorites(reopened)
+    expect(ids).toContain('pain-perdu')
+    expect(ids.map(findRecipe).filter(Boolean).map((r) => r!.id)).toEqual(['pain-perdu'])
   })
 
   it('enregistre et retire une recette favorite', async () => {

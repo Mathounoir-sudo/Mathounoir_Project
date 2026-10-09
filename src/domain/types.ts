@@ -82,6 +82,11 @@ export interface InventoryItem {
   source: Source
   /** false pour une donnée proposée automatiquement et pas encore vérifiée (future reconnaissance photo). */
   confirmed: boolean
+  /**
+   * true si l'utilisateur a validé l'ingrédient du catalogue correspondant (`ingredientId`, ou aucun).
+   * Sinon, le lien est recalculé à partir du nom et peut n'être que « probable ».
+   */
+  linkConfirmed: boolean
   createdAt: string
   updatedAt: string
 }
@@ -89,7 +94,7 @@ export interface InventoryItem {
 /** Champs modifiables par l'utilisateur dans le formulaire. */
 export type InventoryInput = Pick<
   InventoryItem,
-  'name' | 'category' | 'quantity' | 'unit' | 'location' | 'status' | 'purchasedOn' | 'openedOn' | 'dateLabel' | 'urgent'
+  'name' | 'ingredientId' | 'category' | 'quantity' | 'unit' | 'location' | 'status' | 'purchasedOn' | 'openedOn' | 'dateLabel' | 'urgent'
 >
 
 export interface CatalogIngredient {
@@ -111,16 +116,46 @@ export interface RecipeIngredient {
   note?: string
 }
 
+export const HEATS = ['feu doux', 'feu moyen', 'feu vif'] as const
+export type Heat = (typeof HEATS)[number]
+
+export interface RecipeStep {
+  text: string
+  /** Niveau de feu, quand l'étape se fait sur la plaque. */
+  heat?: Heat
+  /** Température du four en °C, quand l'étape se fait au four. */
+  ovenC?: number
+}
+
+/**
+ * Remplacement structuré : si l'ingrédient `replaces` manque, la recette reste faisable
+ * avec les ingrédients `use` (quantités pour le nombre de portions de base de la recette).
+ */
+export interface Substitution {
+  replaces: string
+  use: RecipeIngredient[]
+  note?: string
+}
+
 export interface Recipe {
   id: string
   title: string
   description: string
+  /** Famille de plat, pour varier les suggestions (ex. « omelette », « soupe », « gâteau »). */
+  family: string
   servings: number
+  /** false si les quantités ne doivent pas être recalculées (gâteau dans un moule, par exemple). */
+  scalable: boolean
   prepMinutes: number
   cookMinutes: number
   ingredients: RecipeIngredient[]
-  steps: string[]
-  substitutions: string[]
+  equipment: string[]
+  steps: RecipeStep[]
+  substitutions: Substitution[]
+  /** Astuces libres (ne sont pas utilisées par le moteur de recettes). */
+  tips: string[]
+  /** En quoi la recette aide à éviter le gaspillage. */
+  antiWaste: string
   /** Conseil de conservation, seulement quand il est fiable. */
   storage: string | null
   safety: string[]

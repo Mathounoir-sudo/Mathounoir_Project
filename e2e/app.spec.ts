@@ -15,16 +15,16 @@ test('parcours 1 : ajouter des ingrédients à la main puis trouver une recette'
   await expect(page.getByText('Votre inventaire est vide')).toBeVisible()
   await page.getByRole('link', { name: 'Ajouter un ingrédient' }).click()
 
-  // Recherche dans le catalogue : la catégorie est proposée automatiquement.
+  // Recherche dans le catalogue : l'ingrédient correspondant et la catégorie sont choisis.
   await page.getByLabel('Nom').fill('œuf')
   await page.getByRole('option').getByRole('button', { name: /Œuf/ }).click()
+  await expect(page.getByLabel('Ingrédient correspondant (pour les recettes)')).toHaveValue('oeuf')
   await expect(page.getByLabel('Catégorie')).toHaveValue('egg')
-  await expect(page.getByText(/Reconnu : Œuf/)).toBeVisible()
   await page.getByLabel(/Quantité/).fill('6')
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click()
   await expect(page.getByText('« Œuf » ajouté à l’inventaire.')).toBeVisible()
 
-  // Basique confirmé explicitement : jamais supposé.
+  // Basiques confirmés explicitement : jamais supposés.
   await page.getByRole('button', { name: 'Sel' }).click()
   await expect(page.getByRole('button', { name: 'Sel' })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Huile' }).click()
@@ -35,16 +35,81 @@ test('parcours 1 : ajouter des ingrédients à la main puis trouver une recette'
   await expect(page.getByRole('heading', { name: 'Mes recettes' })).toBeVisible()
 
   await page.getByRole('switch', { name: /Uniquement avec ce que j’ai/ }).check({ force: true })
-  const omelette = page.getByRole('link', { name: /Omelette vide-frigo/ })
-  await expect(omelette).toContainText('Rien à acheter')
-  await expect(page.getByRole('link', { name: /Pain perdu/ })).toHaveCount(0)
+  const cards = page.getByRole('link').filter({ hasText: 'Pourquoi cette recette ?' })
+  await expect(cards).toHaveCount(1)
+  const omelette = cards.filter({ hasText: 'Omelette vide-frigo' })
+  await expect(omelette).toContainText('Faisable')
+  await expect(omelette).toContainText('Faisable avec ce que vous avez.')
+  await expect(page.getByText(/recettes? écartées? car il faudrait faire des courses/)).toBeVisible()
 
   await omelette.click()
   await expect(page.getByRole('heading', { name: 'Omelette vide-frigo' })).toBeVisible()
-  await expect(page.getByText('Vous avez tous les ingrédients nécessaires.')).toBeVisible()
-  await expect(page.getByText('Préparation', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Pour 1 portion', { exact: true })).toBeVisible()
   await expect(page.getByText('3 unités')).toBeVisible()
+  await expect(page.getByText('Feu moyen').first()).toBeVisible()
   await expect(page.getByText(/Étape 1/)).toBeAttached()
+  await expect(page.getByText('Intérêt anti-gaspi')).toBeVisible()
+})
+
+test('portions : quantités et faisabilité recalculées, inventaire inchangé, choix mémorisé', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Essayer avec la démo' }).click()
+  await page.goto('/#/recettes/pain-perdu')
+  await expect(page.getByText('Pour 1 portion', { exact: true })).toBeVisible()
+  const pain = page.getByRole('list', { name: 'Ingrédients de la recette' }).getByRole('listitem').filter({ hasText: /^Pain — rassis/ })
+  await expect(pain).toContainText('2 tranches')
+
+  await page.getByRole('button', { name: 'Une portion de plus' }).click()
+  await page.getByRole('button', { name: 'Une portion de plus' }).click()
+  await page.getByRole('button', { name: 'Une portion de plus' }).click()
+  await expect(page.getByText('Pour 4 portions', { exact: true })).toBeVisible()
+  await expect(pain).toContainText('8 tranches')
+  await expect(pain).toContainText('Pas assez : vous avez 4 tranches, il manque 4 tranches')
+  await expect(page.getByText(/^À acheter : .*pain \(il manque 4 tranches\)/)).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByText('Pour 4 portions', { exact: true })).toBeVisible()
+  await nav(page, 'Inventaire').click()
+  await expect(page.getByRole('group', { name: 'Quantité de Pain de campagne' })).toContainText('4 tranches')
+})
+
+test('mode strict sans recette possible : état vide honnête et alternatives', async ({ page }) => {
+  await page.goto('/#/inventaire/nouveau')
+  await page.getByLabel('Nom').fill('Bananes')
+  await page.getByLabel(/Quantité/).fill('1')
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click()
+  await nav(page, 'Recettes').click()
+  await page.getByRole('switch', { name: /Uniquement avec ce que j’ai/ }).check({ force: true })
+  await expect(page.getByText('Aucune recette sans courses')).toBeVisible()
+  await page.getByText(/1 recette écartée car il faudrait faire des courses/).click()
+  await expect(page.getByText(/Banana bread/)).toBeVisible()
+  await expect(page.getByText(/À acheter : banane \(il manque 2 unités\)/)).toBeVisible()
+  await page.getByRole('button', { name: 'Voir les recettes avec courses' }).click()
+  await expect(page.getByRole('link').filter({ hasText: 'Banana bread' })).toContainText('Courses nécessaires')
+})
+
+test('un nom seulement proche n’est pas relié automatiquement sans confirmation', async ({ page }) => {
+  await page.goto('/#/inventaire/nouveau')
+  await page.getByLabel('Nom').fill('Tomates cerises')
+  await expect(page.getByLabel('Ingrédient correspondant (pour les recettes)')).toHaveValue('tomate')
+  await expect(page.getByText('Proposé d’après le nom : vérifiez qu’il s’agit bien du même ingrédient avant d’enregistrer.')).toBeVisible()
+  await page.getByLabel('Nom').fill('Bouillon de poulet')
+  await expect(page.getByLabel('Ingrédient correspondant (pour les recettes)')).toHaveValue('bouillon')
+  await page.getByLabel('Nom').fill('Jus de citron')
+  await expect(page.getByLabel('Ingrédient correspondant (pour les recettes)')).toHaveValue('')
+  await expect(page.getByText(/Aucun : ce produit sera enregistré, mais pas utilisé/)).toBeVisible()
+})
+
+test('un produit à DLC dépassée n’est jamais utilisé dans une recette', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Essayer avec la démo' }).click()
+  await page.goto('/#/recettes/gratin-pates')
+  await expect(page.getByText('Crème fraîche n’est pas utilisé : DLC dépassée, ne pas consommer.')).toBeVisible()
+  const ingredients = page.getByRole('list', { name: 'Ingrédients de la recette' })
+  const creme = ingredients.getByRole('listitem').filter({ hasText: /^Crème/ })
+  // La crème périmée n'est pas utilisée ; la recette propose son remplacement (lait + œuf de la démo).
+  await expect(creme).toContainText('Remplacé par lait (10 cl) + œuf (½ unité)')
+  await expect(creme).toContainText('Crème fraîche n’est pas utilisé : DLC dépassée, ne pas consommer.')
 })
 
 test('validation : messages d’erreur compréhensibles', async ({ page }) => {
@@ -93,6 +158,8 @@ test('parcours 4 : les données persistent après rechargement', async ({ page }
     await p.getByLabel('Date indiquée').fill('2099-01-01')
   })
   await page.getByRole('button', { name: 'Ajouter 1 unité à Courgettes' }).click()
+  // L'affichage n'est mis à jour qu'après l'écriture en base : on l'attend avant de recharger.
+  await expect(page.getByRole('group', { name: 'Quantité de Courgettes' })).toContainText('3 unités')
   await page.reload()
   await expect(page.getByText('Courgettes')).toBeVisible()
   await expect(page.getByRole('group', { name: 'Quantité de Courgettes' })).toContainText('3 unités')

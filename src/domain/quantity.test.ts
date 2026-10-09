@@ -24,6 +24,10 @@ describe('quantités', () => {
     expect(formatQuantity(1, 'unité')).toBe('1 unité')
     expect(formatQuantity(null, 'g')).toBe('Quantité inconnue')
     expect(formatQuantity(null, null)).toBe('Selon le goût')
+    expect(formatQuantity(1.5, 'unité')).toBe('1 ½ unité')
+    expect(formatQuantity(0.5, 'c. à s.')).toBe('½ c. à s.')
+    expect(formatQuantity(2.5, 'tranche')).toBe('2 ½ tranches')
+    expect(formatQuantity(12.5, 'cl')).toBe('12,5 cl')
   })
   it('lit la saisie', () => {
     expect(parseQuantity('1,5')).toBe(1.5)

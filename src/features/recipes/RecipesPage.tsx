@@ -1,49 +1,56 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { BookOpen, ChefHat, Heart, Info, Plus } from 'lucide-react'
-import { ButtonLink } from '../../components/Button'
+import { Button, ButtonLink } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { Segmented } from '../../components/Segmented'
+import { ServingsSelector } from '../../components/ServingsSelector'
 import { Toggle } from '../../components/Toggle'
-import { useFavorites, useInventory, useStaples } from '../../hooks/useData'
-import { suggestRecipes } from '../../domain/matching'
-import { CATALOG_BY_ID } from '../../data/catalog'
-import { RECIPE_CATALOG, findRecipe } from '../../services/recipes'
+import { useToast } from '../../components/Toast'
+import { useFavorites } from '../../hooks/useData'
+import { useRecommendations } from '../../hooks/useRecipeEngine'
+import { setServings } from '../../services/preferences'
 import { RecipeCard } from './RecipeCard'
 
 type Tab = 'suggestions' | 'all' | 'saved'
 
 export function RecipesPage() {
-  const inventory = useInventory()
-  const staples = useStaples()
-  const favorites = useFavorites()
   const [tab, setTab] = useState<Tab>('suggestions')
   const [strict, setStrict] = useState(false)
+  const result = useRecommendations(strict)
+  const favorites = useFavorites()
+  const toast = useToast()
 
-  const matches = useMemo(
-    () => (inventory && staples ? suggestRecipes(RECIPE_CATALOG.recipes, inventory, CATALOG_BY_ID, { staples, strict }) : undefined),
-    [inventory, staples, strict],
-  )
-  const saved = (favorites ?? []).map(findRecipe).filter((r) => r !== undefined)
+  if (!result) return <div aria-busy="true" />
+  const { recommendations, ranked, excluded, all, inventory, staples, servings } = result
+  const byId = new Map(all.map((e) => [e.recipe.id, e]))
+  const saved = (favorites ?? []).map((id) => byId.get(id)).filter((e) => e !== undefined)
+  const othersCount = ranked.length - recommendations.length
 
   return (
     <>
-      <PageHeader title="Mes recettes" subtitle="Que cuisiner avec ce que j’ai ?" />
-      <Segmented
-        label="Afficher"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'suggestions', label: 'Pour moi' },
-          { value: 'all', label: `Toutes (${RECIPE_CATALOG.recipes.length})` },
-          { value: 'saved', label: 'Enregistrées' },
-        ]}
-      />
-      <p className="mt-3 flex items-start gap-2 text-sm text-muted">
-        <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        Recettes de démonstration. La génération de recettes par IA n’est pas encore activée.
-      </p>
+      <PageHeader title="Mes recettes" subtitle="Que cuisiner maintenant avec ce que j’ai ?" />
+
+      <div className="space-y-3">
+        <ServingsSelector value={servings} onChange={(n) => void toast.run(() => setServings(n))} />
+        <Segmented
+          label="Afficher"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'suggestions', label: 'Pour moi' },
+            { value: 'all', label: `Toutes (${all.length})` },
+            { value: 'saved', label: 'Enregistrées' },
+          ]}
+        />
+        <p className="flex items-start gap-2 text-sm text-muted">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          Recettes de démonstration, choisies par des règles transparentes à partir de votre inventaire. Aucune IA
+          n’est utilisée.
+        </p>
+      </div>
 
       {tab === 'suggestions' && (
         <>
@@ -56,17 +63,18 @@ export function RecipesPage() {
               description="Masque les recettes qui demandent des courses."
             />
           </div>
-          {staples?.size === 0 && inventory && inventory.length > 0 && (
+          {staples.size === 0 && inventory.length > 0 && (
             <p className="mt-3 text-sm text-muted">
               Astuce : confirmez vos basiques (sel, huile…) dans{' '}
               <Link to="/inventaire" className="font-semibold text-primary underline">
                 l’inventaire
               </Link>{' '}
-              pour des suggestions plus justes.
+              : ils ne sont jamais supposés présents.
             </p>
           )}
-          <div className="mt-4 space-y-2">
-            {matches === undefined ? null : inventory?.length === 0 ? (
+
+          <div className="mt-4 space-y-3">
+            {inventory.length === 0 ? (
               <EmptyState
                 icon={<ChefHat className="size-7" />}
                 title="Ajoutez d’abord vos ingrédients"
@@ -78,14 +86,62 @@ export function RecipesPage() {
               >
                 Les suggestions sont calculées à partir de ce que vous avez réellement.
               </EmptyState>
-            ) : matches.length === 0 ? (
-              <EmptyState icon={<ChefHat className="size-7" />} title={strict ? 'Aucune recette sans courses' : 'Aucune recette correspondante'}>
+            ) : recommendations.length === 0 ? (
+              <EmptyState
+                icon={<ChefHat className="size-7" />}
+                title={strict ? 'Aucune recette sans courses' : 'Aucune recette n’utilise vos ingrédients'}
+                actions={
+                  <>
+                    {strict && <Button onClick={() => setStrict(false)}>Voir les recettes avec courses</Button>}
+                    <ButtonLink to="/inventaire" variant="secondary">
+                      Compléter mon inventaire
+                    </ButtonLink>
+                    {!strict && (
+                      <Button variant="secondary" onClick={() => setTab('all')}>
+                        Parcourir toutes les recettes
+                      </Button>
+                    )}
+                  </>
+                }
+              >
                 {strict
-                  ? 'Aucune recette de démonstration n’est réalisable uniquement avec votre inventaire. Désactivez le filtre pour voir ce qu’il manque.'
-                  : 'Aucune recette de démonstration n’utilise vos ingrédients. Consultez l’onglet « Toutes ».'}
+                  ? 'Avec votre inventaire actuel, chaque recette demande au moins un achat. Vous pouvez afficher les recettes avec courses, ajouter des ingrédients oubliés ou confirmer vos basiques.'
+                  : 'Aucune recette de démonstration n’utilise les ingrédients enregistrés. Vérifiez l’ingrédient correspondant de vos produits dans l’inventaire.'}
               </EmptyState>
             ) : (
-              matches.map((m) => <RecipeCard key={m.recipe.id} recipe={m.recipe} match={m} />)
+              <>
+                <h2 className="sr-only">Recommandations</h2>
+                {recommendations.map((r) => (
+                  <RecipeCard key={r.evaluation.recipe.id} evaluation={r.evaluation} reasons={r.reasons} />
+                ))}
+                {othersCount > 0 && (
+                  <Button variant="ghost" className="w-full" onClick={() => setTab('all')}>
+                    Voir les {othersCount} autre{othersCount > 1 ? 's' : ''} recette{othersCount > 1 ? 's' : ''} compatible
+                    {othersCount > 1 ? 's' : ''}
+                  </Button>
+                )}
+              </>
+            )}
+
+            {strict && excluded.length > 0 && (
+              <Card>
+                <details>
+                  <summary className="cursor-pointer font-semibold">
+                    {excluded.length} recette{excluded.length > 1 ? 's' : ''} écartée{excluded.length > 1 ? 's' : ''} car il
+                    faudrait faire des courses
+                  </summary>
+                  <ul className="mt-2 space-y-2 text-sm">
+                    {excluded.map((r) => (
+                      <li key={r.evaluation.recipe.id}>
+                        <Link to={`/recettes/${r.evaluation.recipe.id}`} className="font-semibold text-primary underline">
+                          {r.evaluation.recipe.title}
+                        </Link>{' '}
+                        — {r.reasons[0]}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </Card>
             )}
           </div>
         </>
@@ -93,12 +149,12 @@ export function RecipesPage() {
 
       {tab === 'all' && (
         <div className="mt-4 space-y-2">
-          {RECIPE_CATALOG.recipes.length === 0 ? (
+          {all.length === 0 ? (
             <EmptyState icon={<BookOpen className="size-7" />} title="Aucune recette disponible">
               Les recettes n’ont pas pu être chargées.
             </EmptyState>
           ) : (
-            RECIPE_CATALOG.recipes.map((r) => <RecipeCard key={r.id} recipe={r} />)
+            all.map((e) => <RecipeCard key={e.recipe.id} evaluation={e} compact />)
           )}
         </div>
       )}
@@ -110,7 +166,7 @@ export function RecipesPage() {
               Touchez « Enregistrer » sur une recette pour la retrouver ici.
             </EmptyState>
           ) : (
-            saved.map((r) => <RecipeCard key={r.id} recipe={r} />)
+            saved.map((e) => <RecipeCard key={e.recipe.id} evaluation={e} compact />)
           )}
         </div>
       )}

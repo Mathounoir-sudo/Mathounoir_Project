@@ -1,22 +1,22 @@
 import type { InventoryInput, InventoryItem } from '../domain/types'
-import { buildMatchers, matchIngredient } from '../domain/ingredients'
 import { adjustQuantity } from '../domain/quantity'
 import { todayISO } from '../domain/dates'
-import { CATALOG } from '../data/catalog'
 import { demoInventory } from '../data/demo-inventory'
 import { db as defaultDb, type MijoteDB } from '../lib/db'
 import { UserFacingError, withStorage } from '../lib/errors'
 
-const matchers = buildMatchers(CATALOG)
-
+/**
+ * Le lien vers le catalogue (`ingredientId`, ou aucun) est celui validé dans le formulaire
+ * (ou fixé dans les données de démonstration) : il est donc confirmé.
+ */
 function build(input: InventoryInput, source: InventoryItem['source'], now: string): InventoryItem {
   return {
     ...input,
     id: crypto.randomUUID(),
     name: input.name.trim(),
-    ingredientId: matchIngredient(input.name, matchers),
     source,
     confirmed: true,
+    linkConfirmed: true,
     createdAt: now,
     updatedAt: now,
   }
@@ -35,9 +35,9 @@ export async function updateItem(id: string, input: InventoryInput, database: Mi
     const updated = await database.pantry.update(id, {
       ...input,
       name: input.name.trim(),
-      ingredientId: matchIngredient(input.name, matchers),
-      // Une modification par l'utilisateur vaut confirmation.
+      // Une modification par l'utilisateur vaut confirmation, y compris du lien vers le catalogue.
       confirmed: true,
+      linkConfirmed: true,
       updatedAt: new Date().toISOString(),
     })
     if (updated === 0) throw new UserFacingError('Cet ingrédient n’existe plus : il a peut-être été supprimé.')

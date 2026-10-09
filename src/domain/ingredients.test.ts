@@ -1,30 +1,64 @@
 import { describe, expect, it } from 'vitest'
-import { buildMatchers, matchIngredient, searchCatalog } from './ingredients'
+import { buildMatchers, linkIngredient, resolveLink, searchCatalog } from './ingredients'
 import { CATALOG } from '../data/catalog'
 
 const matchers = buildMatchers(CATALOG)
+const link = (label: string) => linkIngredient(label, matchers)
 
-describe('matchIngredient', () => {
+describe('correspondance exacte (nom ou synonyme explicite)', () => {
   it.each([
-    ['Tomates cerises', 'tomate'],
+    ['Tomates', 'tomate'],
     ['Pommes de terre', 'pomme-de-terre'],
     ['Pommes', 'pomme'],
-    ['6 œufs bio', 'oeuf'],
+    ['6 œufs', 'oeuf'],
     ['Reste de riz', 'riz'],
     ['Lait de coco', 'lait-coco'],
-    ['Lait demi-écrémé', 'lait'],
-    ['Pâte feuilletée', 'pate-a-tarte'],
     ['Spaghetti', 'pates'],
-    ['Emmental râpé', 'fromage-rape'],
+    ['Emmental', 'fromage-rape'],
     ['Chou-fleur', 'chou-fleur'],
     ['Persil', 'herbes'],
+    ['Crème fraîche', 'creme'],
   ])('« %s » → %s', (label, expected) => {
-    expect(matchIngredient(label, matchers)).toBe(expected)
+    expect(link(label)).toEqual({ ingredientId: expected, certainty: 'exact' })
   })
+})
 
-  it('renvoie null pour un produit inconnu', () => {
-    expect(matchIngredient('Tofu fumé', matchers)).toBeNull()
-    expect(matchIngredient('   ', matchers)).toBeNull()
+describe('correspondance probable (à confirmer)', () => {
+  it.each([
+    ['Tomates cerises', 'tomate'],
+    ['Lait demi-écrémé', 'lait'],
+    ['Pommes de terre nouvelles', 'pomme-de-terre'],
+    ['Pâte feuilletée maison', 'pate-a-tarte'],
+  ])('« %s » → %s, seulement probable', (label, expected) => {
+    expect(link(label)).toEqual({ ingredientId: expected, certainty: 'probable' })
+  })
+})
+
+describe('ingrédients non équivalents', () => {
+  it.each([
+    // Le nom contient « poulet », mais c'est un bouillon : jamais relié au poulet.
+    ['Bouillon de poulet', { ingredientId: 'bouillon', certainty: 'probable' }],
+    ['Yaourt à la fraise', { ingredientId: 'yaourt', certainty: 'probable' }],
+    // Contient un mot connu sans commencer par lui : aucun lien.
+    ['Jus de citron', null],
+    ['Chips au fromage', null],
+    ['Tofu fumé', null],
+    ['   ', null],
+  ])('« %s » → %o', (label, expected) => {
+    expect(link(label)).toEqual(expected)
+  })
+})
+
+describe('resolveLink', () => {
+  it('respecte le choix confirmé par l’utilisateur, y compris « aucun »', () => {
+    expect(resolveLink({ name: 'Tomates cerises', ingredientId: 'tomate', linkConfirmed: true }, matchers)).toEqual({
+      ingredientId: 'tomate',
+      certainty: 'confirmed',
+    })
+    expect(resolveLink({ name: 'Lait', ingredientId: null, linkConfirmed: true }, matchers)).toBeNull()
+  })
+  it('recalcule le lien d’un produit non confirmé à partir de son nom', () => {
+    expect(resolveLink({ name: 'Bouillon de poulet', ingredientId: 'poulet', linkConfirmed: false }, matchers)?.ingredientId).toBe('bouillon')
   })
 })
 

@@ -4,6 +4,7 @@ import { DEMO_RECIPES_RAW } from '../data/demo-recipes'
 import { CATALOG_BY_ID } from '../data/catalog'
 
 const base: InventoryFormValues = {
+  ingredientId: 'lait',
   name: 'Lait',
   category: 'dairy',
   quantity: '1,5',
@@ -21,6 +22,7 @@ describe('formulaire d’ingrédient', () => {
   it('transforme une saisie valide', () => {
     expect(inventoryFormSchema.parse(base)).toEqual({
       name: 'Lait',
+      ingredientId: 'lait',
       category: 'dairy',
       quantity: 1.5,
       unit: 'l',
@@ -34,7 +36,8 @@ describe('formulaire d’ingrédient', () => {
   })
 
   it('accepte une quantité et une date absentes', () => {
-    const r = inventoryFormSchema.parse({ ...base, quantity: '', dateKind: '', date: '', location: '' })
+    const r = inventoryFormSchema.parse({ ...base, ingredientId: '', quantity: '', dateKind: '', date: '', location: '' })
+    expect(r.ingredientId).toBeNull()
     expect(r.quantity).toBeNull()
     expect(r.dateLabel).toBeNull()
     expect(r.location).toBeNull()

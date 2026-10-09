@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CATEGORIES, DATE_KINDS, LOCATIONS, STATUSES, UNITS } from './types'
+import { CATEGORIES, DATE_KINDS, HEATS, LOCATIONS, STATUSES, UNITS } from './types'
 import { isValidISODate } from './dates'
 
 const isoDate = z.string().refine(isValidISODate, { message: 'Date invalide.' })
@@ -22,35 +22,65 @@ export const inventoryItemSchema = z.object({
   urgent: z.boolean(),
   source: z.enum(['manual', 'demo']),
   confirmed: z.boolean(),
+  // Champ ajouté en phase 2 : absent des données plus anciennes, il vaut alors false.
+  linkConfirmed: z.boolean().default(false),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
 
-/** Schéma d'une recette : toute recette est validée avant d'être affichée. */
-export const recipeSchema = z.object({
-  id: z.string().regex(/^[a-z0-9-]+$/),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  servings: z.number().int().min(1).max(12),
-  prepMinutes: z.number().int().min(0).max(600),
-  cookMinutes: z.number().int().min(0).max(600),
-  ingredients: z
-    .array(
-      z.object({
-        ingredientId: z.string().min(1),
-        quantity: z.number().positive().nullable(),
-        unit: z.enum(UNITS).nullable(),
-        optional: z.boolean().optional(),
-        note: z.string().optional(),
-      }),
-    )
-    .min(1),
-  steps: z.array(z.string().min(1)).min(1),
-  substitutions: z.array(z.string()),
-  storage: z.string().nullable(),
-  safety: z.array(z.string()),
-  tags: z.array(z.string()),
-})
+const recipeIngredientSchema = z
+  .object({
+    ingredientId: z.string().min(1),
+    quantity: z.number().positive().nullable(),
+    unit: z.enum(UNITS).nullable(),
+    optional: z.boolean().optional(),
+    note: z.string().optional(),
+  })
+  // Une quantité sans unité (ou l'inverse) serait ambiguë.
+  .refine((i) => (i.quantity === null) === (i.unit === null), { message: 'Quantité et unité vont ensemble.' })
+
+/** Schéma d'une recette : toute recette (démo ou future source) est validée avant d'être affichée. */
+export const recipeSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9-]+$/),
+    title: z.string().min(1),
+    description: z.string().min(1),
+    family: z.string().min(1),
+    servings: z.number().int().min(1).max(12),
+    scalable: z.boolean(),
+    prepMinutes: z.number().int().min(0).max(600),
+    cookMinutes: z.number().int().min(0).max(600),
+    ingredients: z.array(recipeIngredientSchema).min(1),
+    equipment: z.array(z.string().min(1)),
+    steps: z
+      .array(
+        z.object({
+          text: z.string().min(1),
+          heat: z.enum(HEATS).optional(),
+          ovenC: z.number().int().min(50).max(300).optional(),
+        }),
+      )
+      .min(1),
+    substitutions: z.array(
+      z.object({ replaces: z.string().min(1), use: z.array(recipeIngredientSchema).min(1), note: z.string().optional() }),
+    ),
+    tips: z.array(z.string()),
+    antiWaste: z.string().min(1),
+    storage: z.string().nullable(),
+    safety: z.array(z.string()),
+    tags: z.array(z.string()),
+  })
+  .superRefine((r, ctx) => {
+    // Chaque ingrédient n'apparaît qu'une fois : évite de compter deux fois le même produit.
+    const ids = r.ingredients.map((i) => i.ingredientId)
+    const dup = ids.find((id, i) => ids.indexOf(id) !== i)
+    if (dup) ctx.addIssue({ code: 'custom', path: ['ingredients'], message: `Ingrédient en double : ${dup}` })
+    for (const s of r.substitutions) {
+      if (!ids.includes(s.replaces)) {
+        ctx.addIssue({ code: 'custom', path: ['substitutions'], message: `Remplacement d'un ingrédient absent : ${s.replaces}` })
+      }
+    }
+  })
 
 /**
  * Formulaire d'ajout / modification : champs bruts du formulaire (texte),
@@ -58,6 +88,8 @@ export const recipeSchema = z.object({
  */
 export const inventoryFormSchema = z
   .object({
+    /** Ingrédient du catalogue choisi ('' = aucun). */
+    ingredientId: z.string(),
     name: z.string().trim().min(1, 'Indiquez le nom de l’ingrédient.').max(80, 'Nom trop long (80 caractères maximum).'),
     category: z.enum(CATEGORIES, { message: 'Choisissez une catégorie.' }),
     quantity: z.string(),
@@ -90,6 +122,7 @@ export const inventoryFormSchema = z
   })
   .transform((v) => ({
     name: v.name,
+    ingredientId: v.ingredientId || null,
     category: v.category,
     quantity: v.quantity.trim() === '' ? null : Number(v.quantity.trim().replace(',', '.')),
     unit: v.unit,

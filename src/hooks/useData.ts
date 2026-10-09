@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, categoryOf } from '../lib/db'
 import type { InventoryItem } from '../domain/types'
 import { readStoredItems, type StoredInventory } from '../domain/stored'
+import { parseServings } from '../services/preferences'
 
 /**
  * Données locales, mises à jour automatiquement à chaque modification.
@@ -21,6 +22,11 @@ export function useStaples(): Set<string> | undefined {
     const row = await db.settings.get('staples')
     return new Set(Array.isArray(row?.value) ? (row.value as string[]) : [])
   })
+}
+
+/** Nombre de portions mémorisé (1 par défaut, valeur invalide ignorée). */
+export function useServings(): number | undefined {
+  return useLiveQuery(async () => parseServings((await db.settings.get('servings'))?.value))
 }
 
 export function useFavorites(): string[] | undefined {

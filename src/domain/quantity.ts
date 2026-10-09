@@ -34,12 +34,24 @@ const PLURALS: Partial<Record<Unit, string>> = {
   botte: 'bottes',
 }
 
-/** « 4 tranches », « 1,5 kg », « 2 unités », « Quantité inconnue ». */
+const METRIC: Unit[] = ['g', 'kg', 'ml', 'cl', 'l']
+
+/** Nombre lisible en cuisine : « ½ », « 1 ½ » pour les demis (hors unités métriques), sinon « 1,5 ». */
+export function formatNumber(quantity: number, unit: Unit | null): string {
+  const isHalf = Math.abs(quantity * 2 - Math.round(quantity * 2)) < 1e-9 && !Number.isInteger(quantity)
+  if (isHalf && unit && !METRIC.includes(unit)) {
+    const whole = Math.floor(quantity)
+    return whole > 0 ? `${whole} ½` : '½'
+  }
+  return quantity.toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+}
+
+/** « 4 tranches », « 1,5 kg », « 1 ½ unité », « Quantité inconnue ». Pluriel à partir de 2. */
 export function formatQuantity(quantity: number | null, unit: Unit | null): string {
   if (quantity === null) return unit ? 'Quantité inconnue' : 'Selon le goût'
-  const n = quantity.toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+  const n = formatNumber(quantity, unit)
   if (!unit) return n
-  return `${n} ${quantity > 1 ? (PLURALS[unit] ?? unit) : unit}`
+  return `${n} ${quantity >= 2 ? (PLURALS[unit] ?? unit) : unit}`
 }
 
 /** Lit un nombre saisi au clavier français (« 1,5 ») ; null si vide ; NaN si invalide. */

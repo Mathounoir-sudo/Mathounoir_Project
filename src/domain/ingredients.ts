@@ -1,4 +1,4 @@
-import type { CatalogIngredient } from './types'
+import type { CatalogIngredient, InventoryItem } from './types'
 import { normalizeSingular } from './text'
 
 interface Matcher {
@@ -6,11 +6,26 @@ interface Matcher {
   words: string[]
 }
 
+/**
+ * Certitude du lien entre un produit de l'inventaire et un ingrédient du catalogue :
+ * - confirmed : choisi par l'utilisateur ;
+ * - exact : le nom correspond exactement au nom ou à un synonyme explicite du catalogue ;
+ * - probable : le nom COMMENCE par un ingrédient connu (« Tomates cerises » → tomate) — à confirmer.
+ * Un nom qui contient seulement un mot connu (« Bouillon de poulet », « Jus de citron »)
+ * n'est jamais relié automatiquement : des noms proches ne sont pas forcément le même ingrédient.
+ */
+export type LinkCertainty = 'confirmed' | 'exact' | 'probable'
+
+export interface IngredientLink {
+  ingredientId: string
+  certainty: LinkCertainty
+}
+
 export function buildMatchers(catalog: CatalogIngredient[]): Matcher[] {
   const matchers: Matcher[] = []
   for (const ing of catalog) {
     for (const label of [ing.name, ...(ing.aliases ?? [])]) {
-      const words = normalizeSingular(label).split(' ').filter(Boolean)
+      const words = labelWords(label)
       if (words.length > 0) matchers.push({ ingredientId: ing.id, words })
     }
   }
@@ -18,27 +33,29 @@ export function buildMatchers(catalog: CatalogIngredient[]): Matcher[] {
   return matchers.sort((a, b) => b.words.length - a.words.length)
 }
 
-function containsSequence(haystack: string[], needle: string[]): boolean {
-  outer: for (let i = 0; i + needle.length <= haystack.length; i++) {
-    for (let j = 0; j < needle.length; j++) {
-      if (haystack[i + j] !== needle[j]) continue outer
-    }
-    return true
-  }
-  return false
+/** Mots normalisés d'un libellé, sans les nombres en tête (« 6 œufs » → « oeuf »). */
+function labelWords(label: string): string[] {
+  const words = normalizeSingular(label).split(' ').filter(Boolean)
+  while (words.length > 0 && /^\d+$/.test(words[0]!)) words.shift()
+  return words
 }
 
-/**
- * Retrouve l'ingrédient du catalogue correspondant à un libellé libre.
- * « Tomates cerises » → tomate ; « Reste de riz » → riz ; « Pommes de terre » → pomme-de-terre.
- */
-export function matchIngredient(label: string, matchers: Matcher[]): string | null {
-  const words = normalizeSingular(label).split(' ').filter(Boolean)
+const startsWith = (words: string[], prefix: string[]) => prefix.every((w, i) => words[i] === w)
+
+/** Relie un libellé libre au catalogue, avec son niveau de certitude ; null si rien de sûr ni de probable. */
+export function linkIngredient(label: string, matchers: Matcher[]): IngredientLink | null {
+  const words = labelWords(label)
   if (words.length === 0) return null
-  for (const m of matchers) {
-    if (containsSequence(words, m.words)) return m.ingredientId
-  }
-  return null
+  const exact = matchers.find((m) => m.words.length === words.length && startsWith(words, m.words))
+  if (exact) return { ingredientId: exact.ingredientId, certainty: 'exact' }
+  const probable = matchers.find((m) => m.words.length < words.length && startsWith(words, m.words))
+  return probable ? { ingredientId: probable.ingredientId, certainty: 'probable' } : null
+}
+
+/** Lien d'un produit de l'inventaire : celui confirmé par l'utilisateur, sinon celui déduit du nom. */
+export function resolveLink(item: Pick<InventoryItem, 'name' | 'ingredientId' | 'linkConfirmed'>, matchers: Matcher[]): IngredientLink | null {
+  if (item.linkConfirmed) return item.ingredientId ? { ingredientId: item.ingredientId, certainty: 'confirmed' } : null
+  return linkIngredient(item.name, matchers)
 }
 
 /** Recherche dans le catalogue pour l'autocomplétion (début de mot, sans accents). */

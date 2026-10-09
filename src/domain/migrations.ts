@@ -39,6 +39,7 @@ export function migrateItemV1(old: InventoryItemV1, categoryOf: (ingredientId: s
     urgent: false,
     source: 'manual',
     confirmed: true,
+    linkConfirmed: false,
     createdAt: old.createdAt,
     updatedAt: old.updatedAt,
   }

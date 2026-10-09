@@ -6,11 +6,9 @@ import { Card, SectionTitle } from '../../components/Card'
 import { EmptyState } from '../../components/EmptyState'
 import { PriorityBadge } from '../../components/Badge'
 import { useToast } from '../../components/Toast'
-import { useFavorites, useInventory, useStaples } from '../../hooks/useData'
+import { useFavorites, useInventory } from '../../hooks/useData'
+import { useRecommendations } from '../../hooks/useRecipeEngine'
 import { needsAttention, prioritize } from '../../domain/priority'
-import { suggestRecipes } from '../../domain/matching'
-import { CATALOG_BY_ID } from '../../data/catalog'
-import { RECIPE_CATALOG, findRecipe } from '../../services/recipes'
 import { loadDemoInventory } from '../../services/inventory'
 import { RecipeCard } from '../recipes/RecipeCard'
 import { UnreadableNotice } from '../../components/UnreadableNotice'
@@ -22,18 +20,16 @@ function greeting(now = new Date()) {
 
 export function HomePage() {
   const inventory = useInventory()
-  const staples = useStaples()
+  const engine = useRecommendations(false)
   const favorites = useFavorites()
   const toast = useToast()
   const navigate = useNavigate()
 
   const priorities = useMemo(() => (inventory ? prioritize(inventory) : []), [inventory])
   const attention = useMemo(() => (inventory ? needsAttention(inventory) : []), [inventory])
-  const suggestions = useMemo(
-    () => (inventory && staples ? suggestRecipes(RECIPE_CATALOG.recipes, inventory, CATALOG_BY_ID, { staples }).slice(0, 3) : []),
-    [inventory, staples],
-  )
-  const saved = (favorites ?? []).map(findRecipe).filter((r) => r !== undefined).slice(0, 3)
+  const suggestions = engine?.recommendations ?? []
+  const evaluations = new Map((engine?.all ?? []).map((e) => [e.recipe.id, e]))
+  const saved = (favorites ?? []).map((id) => evaluations.get(id)).filter((e) => e !== undefined).slice(0, 3)
 
   if (inventory === undefined) return <div aria-busy="true" />
 
@@ -175,22 +171,31 @@ export function HomePage() {
           </Link>
         }
       >
-        {saved.length > 0 ? 'Mes recettes enregistrées' : 'Idées pour vous'}
+        Idées pour vous
       </SectionTitle>
       <div className="space-y-2">
-        {saved.length > 0 ? (
-          saved.map((r) => <RecipeCard key={r.id} recipe={r} />)
-        ) : suggestions.length > 0 ? (
-          suggestions.map((m) => <RecipeCard key={m.recipe.id} recipe={m.recipe} match={m} />)
+        {suggestions.length > 0 ? (
+          suggestions.map((r) => <RecipeCard key={r.evaluation.recipe.id} evaluation={r.evaluation} reasons={r.reasons} />)
         ) : (
           <Card>
             <p className="text-sm text-muted">
-              Aucune recette de démonstration n’utilise encore vos ingrédients. Parcourez toutes les recettes ou ajoutez
-              d’autres ingrédients.
+              Aucune recette de démonstration n’utilise encore vos ingrédients. Parcourez toutes les recettes ou vérifiez
+              l’ingrédient correspondant de vos produits dans l’inventaire.
             </p>
           </Card>
         )}
       </div>
+
+      {saved.length > 0 && (
+        <>
+          <SectionTitle>Mes recettes enregistrées</SectionTitle>
+          <div className="space-y-2">
+            {saved.map((e) => (
+              <RecipeCard key={e.recipe.id} evaluation={e} compact />
+            ))}
+          </div>
+        </>
+      )}
     </>
   )
 }

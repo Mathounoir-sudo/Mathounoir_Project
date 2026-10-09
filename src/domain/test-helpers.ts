@@ -17,6 +17,7 @@ export function makeItem(overrides: Partial<InventoryItem> = {}): InventoryItem 
     urgent: false,
     source: 'manual',
     confirmed: true,
+    linkConfirmed: true,
     createdAt: '2026-03-30T10:00:00.000Z',
     updatedAt: '2026-03-30T10:00:00.000Z',
     ...overrides,

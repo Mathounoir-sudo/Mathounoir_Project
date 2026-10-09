@@ -12,7 +12,7 @@ import { useToast } from '../../components/Toast'
 import { db, categoryOf } from '../../lib/db'
 import { readStoredItems } from '../../domain/stored'
 import { CATALOG, CATALOG_BY_ID } from '../../data/catalog'
-import { buildMatchers, matchIngredient, searchCatalog } from '../../domain/ingredients'
+import { buildMatchers, linkIngredient, resolveLink, searchCatalog } from '../../domain/ingredients'
 import { fieldErrors, inventoryFormSchema, type InventoryFormValues } from '../../domain/schemas'
 import { CATEGORIES, DATE_KINDS, LOCATIONS, STATUSES, UNITS, type Category, type InventoryItem } from '../../domain/types'
 import { fr } from '../../i18n/fr'
@@ -28,6 +28,7 @@ const DATE_HELP: Record<(typeof DATE_KINDS)[number], string> = {
 
 function toValues(item?: InventoryItem): InventoryFormValues {
   return {
+    ingredientId: item ? (resolveLink(item, matchers)?.ingredientId ?? '') : '',
     name: item?.name ?? '',
     category: item?.category ?? 'other',
     quantity: item?.quantity?.toString().replace('.', ',') ?? '',
@@ -95,6 +96,8 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const categoryTouched = useRef(Boolean(item))
+  // L'ingrédient correspondant est-il choisi par l'utilisateur (sinon il suit le nom) ?
+  const [linkManual, setLinkManual] = useState(Boolean(item?.linkConfirmed))
   const formRef = useRef<HTMLFormElement>(null)
 
   const set = <K extends keyof InventoryFormValues>(key: K, value: InventoryFormValues[K]) => {
@@ -107,7 +110,7 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
       })
   }
 
-  const recognizedId = useMemo(() => matchIngredient(values.name, matchers), [values.name])
+  const autoLink = useMemo(() => linkIngredient(values.name, matchers), [values.name])
   const suggestions = useMemo(
     () => (showSuggestions ? searchCatalog(values.name, CATALOG).filter((s) => s.name !== values.name) : []),
     [values.name, showSuggestions],
@@ -115,18 +118,32 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
 
   function setName(name: string) {
     set('name', name)
-    // Catégorie proposée automatiquement tant que l'utilisateur ne l'a pas choisie lui-même.
-    const match = matchIngredient(name, matchers)
-    if (!categoryTouched.current) set('category', (match && CATALOG_BY_ID.get(match)?.category) || 'other')
+    // Ingrédient correspondant et catégorie proposés d'après le nom, tant que l'utilisateur ne les a pas choisis.
+    const link = linkIngredient(name, matchers)
+    if (!linkManual) set('ingredientId', link?.ingredientId ?? '')
+    if (!categoryTouched.current) set('category', (link && CATALOG_BY_ID.get(link.ingredientId)?.category) || 'other')
+  }
+
+  function setLink(id: string) {
+    setLinkManual(true)
+    set('ingredientId', id)
+    const ing = CATALOG_BY_ID.get(id)
+    if (ing && !categoryTouched.current) set('category', ing.category)
   }
 
   function pickSuggestion(id: string) {
     const ing = CATALOG_BY_ID.get(id)
     if (!ing) return
     setName(ing.name)
-    if (!categoryTouched.current) set('category', ing.category)
+    setLink(id)
     setShowSuggestions(false)
   }
+
+  const linkHint = !values.ingredientId
+    ? 'Aucun : ce produit sera enregistré, mais pas utilisé dans les suggestions de recettes.'
+    : !linkManual && autoLink?.certainty === 'probable' && autoLink.ingredientId === values.ingredientId
+      ? 'Proposé d’après le nom : vérifiez qu’il s’agit bien du même ingrédient avant d’enregistrer.'
+      : 'Utilisé pour les suggestions de recettes.'
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -172,16 +189,10 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
             id="name"
             label="Nom"
             error={errors.name}
-            hint={
-              values.name.trim() &&
-              (recognizedId
-                ? `Reconnu : ${CATALOG_BY_ID.get(recognizedId)?.name}. Il sera utilisé pour les suggestions de recettes.`
-                : 'Ingrédient non reconnu : il sera enregistré, mais pas utilisé pour les suggestions de recettes.')
-            }
           >
             <div className="relative">
               <input
-                {...describedBy('name', errors.name, values.name.trim())}
+                {...describedBy('name', errors.name)}
                 className={inputClasses}
                 value={values.name}
                 onChange={(e) => {
@@ -215,6 +226,26 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
                 </ul>
               )}
             </div>
+          </Field>
+
+          <Field id="ingredientId" label="Ingrédient correspondant (pour les recettes)" error={errors.ingredientId} hint={linkHint}>
+            <select
+              {...describedBy('ingredientId', errors.ingredientId, true)}
+              className={inputClasses}
+              value={values.ingredientId}
+              onChange={(e) => setLink(e.target.value)}
+            >
+              <option value="">Aucun</option>
+              {CATEGORIES.filter((c) => CATALOG.some((i) => i.category === c)).map((c) => (
+                <optgroup key={c} label={fr.category[c]}>
+                  {CATALOG.filter((i) => i.category === c).map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </Field>
 
           <Field id="category" label="Catégorie" error={errors.category}>
