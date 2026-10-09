@@ -6,7 +6,8 @@ import { Card, SectionTitle } from '../../components/Card'
 import { EmptyState } from '../../components/EmptyState'
 import { PriorityBadge } from '../../components/Badge'
 import { useToast } from '../../components/Toast'
-import { useFavorites, useInventory } from '../../hooks/useData'
+import { useAvailableLeftovers, useFavorites, useInventory } from '../../hooks/useData'
+import { sortLeftovers } from '../../domain/leftovers'
 import { useRecommendations } from '../../hooks/useRecipeEngine'
 import { needsAttention, prioritize } from '../../domain/priority'
 import { loadDemoInventory } from '../../services/inventory'
@@ -21,6 +22,8 @@ function greeting(now = new Date()) {
 export function HomePage() {
   const inventory = useInventory()
   const engine = useRecommendations(false)
+  const leftovers = useAvailableLeftovers()
+  const urgentLeftovers = useMemo(() => (leftovers ? sortLeftovers(leftovers).slice(0, 3) : []), [leftovers])
   const favorites = useFavorites()
   const toast = useToast()
   const navigate = useNavigate()
@@ -43,7 +46,7 @@ export function HomePage() {
     </header>
   )
 
-  if (inventory.length === 0) {
+  if (inventory.length === 0 && (leftovers?.length ?? 0) === 0) {
     return (
       <>
         {header}
@@ -125,6 +128,33 @@ export function HomePage() {
                     <span className="block text-sm">{priority.reasons[0]}</span>
                   </span>
                   <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {urgentLeftovers.length > 0 && (
+        <>
+          <SectionTitle
+            action={
+              <Link to="/inventaire/restes" className="text-sm font-semibold text-primary">
+                Tous mes restes
+              </Link>
+            }
+          >
+            Mes restes à manger
+          </SectionTitle>
+          <ul className="space-y-2">
+            {urgentLeftovers.map(({ leftover, priority }) => (
+              <li key={leftover.id}>
+                <Link to={`/inventaire/restes/${leftover.id}`} className="block rounded-3xl border border-line bg-card p-4 hover:border-primary/40">
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">{leftover.name}</span>
+                    <PriorityBadge priority={priority} />
+                  </span>
+                  <span className="mt-1 block text-sm text-muted">{priority.reasons[0]}</span>
                 </Link>
               </li>
             ))}

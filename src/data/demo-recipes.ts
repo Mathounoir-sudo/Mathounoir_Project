@@ -41,6 +41,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     safety: [
       'Pour les femmes enceintes, les jeunes enfants et les personnes âgées ou fragiles, cuisez l’omelette jusqu’à ce qu’elle soit entièrement prise.',
     ],
+    yields: null,
     tags: ['rapide', 'salé'],
   },
   {
@@ -72,6 +73,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Transforme le pain rassis, souvent jeté, en dessert ou en goûter.',
     storage: null,
     safety: [],
+    yields: null,
     tags: ['sucré', 'pain rassis'],
   },
   {
@@ -84,13 +86,14 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     prepMinutes: 5,
     cookMinutes: 8,
     ingredients: [
-      { ingredientId: 'riz', quantity: 150, unit: 'g', note: 'déjà cuit' },
+      { ingredientId: 'riz-cuit', quantity: 150, unit: 'g', note: 'de préférence de la veille' },
       { ingredientId: 'oeuf', quantity: 1, unit: 'unité' },
       { ingredientId: 'sauce-soja', quantity: 1, unit: 'c. à s.' },
       { ingredientId: 'huile', quantity: 1, unit: 'c. à s.' },
       { ingredientId: 'petits-pois', quantity: 50, unit: 'g', optional: true },
       { ingredientId: 'carotte', quantity: 1, unit: 'unité', optional: true, note: 'en petits dés' },
       { ingredientId: 'oignon', quantity: 0.5, unit: 'unité', optional: true },
+      { ingredientId: 'legumes-cuits', quantity: 80, unit: 'g', optional: true, note: 'reste, en dés' },
     ],
     equipment: ['Grande poêle ou wok', 'Spatule'],
     steps: [
@@ -104,12 +107,13 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
       { text: 'Arrosez de sauce soja, mélangez et servez aussitôt.' },
     ],
     substitutions: [],
-    tips: ['Ajoutez un reste de poulet ou de jambon en dés.', 'Tout reste de légumes cuits peut remplacer les petits pois et la carotte.'],
+    tips: ['Ajoutez un reste de poulet ou de jambon en dés.'],
     antiWaste: 'Utilise un reste de riz cuit et les petits légumes qui traînent.',
     storage: null,
     safety: [
       'Utilisez du riz refroidi rapidement après cuisson et conservé au réfrigérateur. Réchauffez-le jusqu’à ce qu’il soit fumant, et ne le réchauffez qu’une seule fois.',
     ],
+    yields: null,
     tags: ['rapide', 'salé', 'restes'],
   },
   {
@@ -149,6 +153,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Les légumes flétris ou abîmés en surface y retrouvent toute leur utilité.',
     storage: 'Une fois refroidie, se conserve jusqu’à 2 jours au réfrigérateur dans un récipient fermé.',
     safety: ['Mixez la soupe chaude avec précaution : remplissez le mixeur à moitié au maximum.'],
+    yields: 'soupe',
     tags: ['salé', 'légumes'],
   },
   {
@@ -187,6 +192,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Les tomates trop mûres pour une salade sont parfaites en sauce.',
     storage: null,
     safety: [],
+    yields: null,
     tags: ['salé', 'légumes'],
   },
   {
@@ -199,12 +205,13 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     prepMinutes: 10,
     cookMinutes: 20,
     ingredients: [
-      { ingredientId: 'pates', quantity: 250, unit: 'g', note: 'déjà cuites' },
+      { ingredientId: 'pates-cuites', quantity: 250, unit: 'g' },
       { ingredientId: 'creme', quantity: 15, unit: 'cl' },
       { ingredientId: 'fromage-rape', quantity: 60, unit: 'g' },
       { ingredientId: 'sel', quantity: null, unit: null },
       { ingredientId: 'poivre', quantity: null, unit: null, optional: true },
       { ingredientId: 'jambon', quantity: 2, unit: 'tranche', optional: true },
+      { ingredientId: 'legumes-cuits', quantity: 100, unit: 'g', optional: true },
     ],
     equipment: ['Four', 'Plat à gratin'],
     steps: [
@@ -223,10 +230,11 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
         note: 'battus ensemble',
       },
     ],
-    tips: ['Un reste de poulet ou de légumes rôtis peut remplacer le jambon.'],
+    tips: ['Un reste de poulet peut remplacer le jambon.'],
     antiWaste: 'Réutilise les pâtes cuites en trop et les fonds de fromage râpé.',
     storage: null,
     safety: ['Les pâtes cuites doivent avoir été conservées au réfrigérateur. Le gratin doit être bien chaud à cœur.'],
+    yields: null,
     tags: ['salé', 'four', 'restes'],
   },
   {
@@ -260,6 +268,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Une façon rapide d’utiliser le pain un peu sec et le reste de jambon.',
     storage: null,
     safety: [],
+    yields: null,
     tags: ['rapide', 'salé', 'pain rassis'],
   },
   {
@@ -293,6 +302,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Les bananes trop mûres, souvent jetées, en sont l’ingrédient principal.',
     storage: 'Se conserve 3 jours à température ambiante, emballé dans un torchon ou une boîte.',
     safety: [],
+    yields: null,
     tags: ['sucré', 'four', 'fruits trop mûrs'],
   },
   {
@@ -322,6 +332,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Les pommes talées ou ridées sont parfaites une fois les parties abîmées retirées.',
     storage: 'Se conserve 2 jours au réfrigérateur dans un pot fermé.',
     safety: [],
+    yields: null,
     tags: ['sucré', 'fruits trop mûrs'],
   },
   {
@@ -357,6 +368,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Utilise un yaourt qui approche de sa date, plutôt que de le laisser se perdre.',
     storage: null,
     safety: [],
+    yields: null,
     tags: ['sucré', 'rapide'],
   },
   {
@@ -391,6 +403,7 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Écoule une boîte du placard et les légumes du moment, frais ou surgelés.',
     storage: 'Une fois refroidi, se conserve jusqu’à 2 jours au réfrigérateur dans un récipient fermé.',
     safety: [],
+    yields: null,
     tags: ['salé', 'végétarien'],
   },
   {
@@ -424,6 +437,39 @@ export const DEMO_RECIPES_RAW: Recipe[] = [
     antiWaste: 'Les courgettes qui ramollissent n’ont plus besoin d’être fermes une fois mixées.',
     storage: 'Une fois refroidi, se conserve jusqu’à 2 jours au réfrigérateur dans un récipient fermé.',
     safety: ['Mixez le velouté chaud avec précaution : remplissez le mixeur à moitié au maximum.'],
+    yields: 'soupe',
     tags: ['salé', 'légumes'],
+  },
+  {
+    id: 'frittata-legumes-cuits',
+    title: 'Frittata aux légumes cuits',
+    description: 'Une omelette épaisse qui recycle un reste de légumes rôtis, poêlés ou vapeur.',
+    family: 'omelette',
+    servings: 2,
+    scalable: true,
+    prepMinutes: 5,
+    cookMinutes: 12,
+    ingredients: [
+      { ingredientId: 'oeuf', quantity: 4, unit: 'unité' },
+      { ingredientId: 'legumes-cuits', quantity: 200, unit: 'g', note: 'reste, en morceaux' },
+      { ingredientId: 'huile', quantity: 1, unit: 'c. à s.' },
+      { ingredientId: 'sel', quantity: null, unit: null },
+      { ingredientId: 'poivre', quantity: null, unit: null, optional: true },
+      { ingredientId: 'fromage-rape', quantity: 30, unit: 'g', optional: true },
+    ],
+    equipment: ['Poêle d’environ 24 cm avec couvercle', 'Saladier'],
+    steps: [
+      { text: 'Battez les œufs dans le saladier avec le sel, le poivre et le fromage.' },
+      { text: 'Faites chauffer l’huile dans la poêle et réchauffez les légumes 3 minutes en remuant.', heat: 'feu moyen' },
+      { text: 'Versez les œufs sur les légumes et laissez prendre sans remuer, à couvert, 8 minutes.', heat: 'feu doux' },
+      { text: 'Quand le dessus est pris, faites glisser sur une assiette et coupez en parts.' },
+    ],
+    substitutions: [],
+    tips: ['Un reste de pommes de terre cuites en rondelles convient aussi.'],
+    antiWaste: 'Donne une seconde vie à un reste de légumes déjà cuits, qui ne serait pas mangé tel quel.',
+    storage: null,
+    safety: ['Les légumes cuits doivent avoir été conservés au réfrigérateur. La frittata doit être entièrement prise.'],
+    yields: null,
+    tags: ['salé', 'restes'],
   },
 ]

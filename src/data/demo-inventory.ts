@@ -1,4 +1,5 @@
 import type { InventoryInput } from '../domain/types'
+import type { LeftoverInput } from '../domain/schemas'
 import { addDays } from '../domain/dates'
 
 /**
@@ -20,8 +21,22 @@ export function demoInventory(today: string): InventoryInput[] {
     { ...base, name: 'Oignon', ingredientId: 'oignon', category: 'vegetable', quantity: 3, unit: 'unité', status: 'unopened', location: 'pantry' },
     { ...base, name: 'Bananes', ingredientId: 'banane', category: 'fruit', quantity: 3, unit: 'unité', status: 'unopened', location: 'pantry', urgent: true },
     { ...base, name: 'Pain de campagne', ingredientId: 'pain', category: 'starch', quantity: 4, unit: 'tranche', status: 'opened', location: 'pantry' },
-    { ...base, name: 'Reste de riz', ingredientId: 'riz', category: 'starch', quantity: 150, unit: 'g', status: 'leftover', openedOn: addDays(today, -1) },
     { ...base, name: 'Pâtes', ingredientId: 'pates', category: 'starch', quantity: 500, unit: 'g', status: 'unopened', location: 'pantry', dateLabel: { kind: 'best-before', date: addDays(today, 200) } },
     { ...base, name: 'Épinards', ingredientId: 'epinard', category: 'vegetable', quantity: 300, unit: 'g', status: 'frozen', location: 'freezer' },
+  ]
+}
+
+/** Restes FICTIFS de démonstration (déjà cuisinés), distincts des produits crus ci-dessus. */
+export function demoLeftovers(today: string): LeftoverInput[] {
+  return [
+    {
+      name: 'Reste de riz',
+      ingredientId: 'riz-cuit',
+      quantity: 150,
+      unit: 'g',
+      preparedOn: addDays(today, -1),
+      limit: null,
+      note: 'Riz blanc nature',
+    },
   ]
 }

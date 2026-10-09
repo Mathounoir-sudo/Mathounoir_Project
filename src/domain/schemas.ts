@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CATEGORIES, DATE_KINDS, HEATS, LOCATIONS, STATUSES, UNITS } from './types'
+import { CATEGORIES, DATE_KINDS, HEATS, LEFTOVER_STATUSES, LOCATIONS, STATUSES, UNITS } from './types'
 import { isValidISODate } from './dates'
 
 const isoDate = z.string().refine(isValidISODate, { message: 'Date invalide.' })
@@ -39,6 +39,91 @@ const recipeIngredientSchema = z
   // Une quantité sans unité (ou l'inverse) serait ambiguë.
   .refine((i) => (i.quantity === null) === (i.unit === null), { message: 'Quantité et unité vont ensemble.' })
 
+/** Schéma d'un reste enregistré (base locale, sauvegardes). */
+export const leftoverSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  ingredientId: z.string().nullable(),
+  quantity: z.number().min(0).nullable(),
+  unit: z.enum(UNITS),
+  preparedOn: isoDate,
+  limit: dateLabelSchema.nullable(),
+  status: z.enum(LEFTOVER_STATUSES),
+  note: z.string().max(200).nullable(),
+  recipeId: z.string().nullable(),
+  preparationId: z.string().nullable(),
+  source: z.enum(['manual', 'recipe', 'demo']),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  closedAt: z.string().nullable(),
+})
+
+/** Schéma d'une préparation enregistrée (historique). */
+export const preparationSchema = z.object({
+  id: z.string().min(1),
+  recipeId: z.string(),
+  recipeTitle: z.string(),
+  servings: z.number().int().min(1),
+  eatenServings: z.number().int().min(0),
+  deductions: z.array(
+    z.object({
+      stockId: z.string(),
+      stockKind: z.enum(['inventory', 'leftover']),
+      name: z.string(),
+      ingredientId: z.string(),
+      quantity: z.number().min(0).nullable(),
+      unit: z.enum(UNITS),
+      finished: z.boolean(),
+    }),
+  ),
+  leftoverId: z.string().nullable(),
+  createdAt: z.string(),
+})
+
+/**
+ * Formulaire d'un reste (ajout manuel ou fin de préparation) : champs bruts du formulaire,
+ * transformés en données propres avec des messages d'erreur en français.
+ */
+export const leftoverFormSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Indiquez ce que contient ce reste.').max(80, 'Nom trop long (80 caractères maximum).'),
+    ingredientId: z.string(),
+    quantity: z.string(),
+    unit: z.enum(UNITS, { message: 'Choisissez une unité.' }),
+    preparedOn: z.string(),
+    limitKind: z.union([z.enum(DATE_KINDS), z.literal('')]),
+    limitDate: z.string(),
+    note: z.string().max(200, 'Note trop longue (200 caractères maximum).'),
+  })
+  .superRefine((v, ctx) => {
+    const q = v.quantity.trim().replace(',', '.')
+    if (q !== '' && (!/^\d+(\.\d+)?$/.test(q) || Number(q) <= 0)) {
+      ctx.addIssue({ code: 'custom', path: ['quantity'], message: 'Saisissez une quantité positive, par exemple 2 ou 1,5.' })
+    }
+    if (!isValidISODate(v.preparedOn)) ctx.addIssue({ code: 'custom', path: ['preparedOn'], message: 'Indiquez la date de préparation.' })
+    if (v.limitKind && !isValidISODate(v.limitDate)) {
+      ctx.addIssue({ code: 'custom', path: ['limitDate'], message: 'Indiquez la date limite que vous fixez.' })
+    }
+    if (!v.limitKind && v.limitDate) {
+      ctx.addIssue({ code: 'custom', path: ['limitKind'], message: 'Précisez s’il s’agit d’une limite de sécurité ou indicative.' })
+    }
+    if (v.limitKind && isValidISODate(v.limitDate) && isValidISODate(v.preparedOn) && v.limitDate < v.preparedOn) {
+      ctx.addIssue({ code: 'custom', path: ['limitDate'], message: 'La date limite ne peut pas précéder la date de préparation.' })
+    }
+  })
+  .transform((v) => ({
+    name: v.name,
+    ingredientId: v.ingredientId || null,
+    quantity: v.quantity.trim() === '' ? null : Number(v.quantity.trim().replace(',', '.')),
+    unit: v.unit,
+    preparedOn: v.preparedOn,
+    limit: v.limitKind && v.limitDate ? { kind: v.limitKind, date: v.limitDate } : null,
+    note: v.note.trim() || null,
+  }))
+
+export type LeftoverFormValues = z.input<typeof leftoverFormSchema>
+export type LeftoverInput = z.output<typeof leftoverFormSchema>
+
 /** Schéma d'une recette : toute recette (démo ou future source) est validée avant d'être affichée. */
 export const recipeSchema = z
   .object({
@@ -69,6 +154,7 @@ export const recipeSchema = z
     storage: z.string().nullable(),
     safety: z.array(z.string()),
     tags: z.array(z.string()),
+    yields: z.string().min(1).nullable(),
   })
   .superRefine((r, ctx) => {
     // Chaque ingrédient n'apparaît qu'une fois : évite de compter deux fois le même produit.

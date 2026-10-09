@@ -8,7 +8,7 @@ import { useToast } from '../../components/Toast'
 import { db } from '../../lib/db'
 import { isStoragePersisted, requestPersistentStorage } from '../../lib/storage'
 import { exportBackup, readBackup, restoreBackup } from '../../services/backup'
-import { clearInventory, loadDemoInventory, removeDemoInventory } from '../../services/inventory'
+import { clearInventory, clearLeftoversAndHistory, loadDemoInventory, removeDemoInventory } from '../../services/inventory'
 import { setStaples } from '../../services/preferences'
 import type { Backup } from '../../domain/backup'
 
@@ -20,7 +20,7 @@ export function SettingsPage() {
   const [confirmClear, setConfirmClear] = useState(false)
   const counts = useLiveQuery(async () => ({
     total: await db.pantry.count(),
-    demo: await db.pantry.filter((i) => i.source === 'demo').count(),
+    demo: (await db.pantry.filter((i) => i.source === 'demo').count()) + (await db.leftovers.filter((l) => l.source === 'demo').count()),
   }))
 
   useEffect(() => {
@@ -55,6 +55,7 @@ export function SettingsPage() {
     setConfirmClear(false)
     await toast.run(async () => {
       await clearInventory()
+      await clearLeftoversAndHistory()
       await setStaples([])
       await db.favorites.clear()
     }, 'Toutes vos données ont été effacées de cet appareil.')
@@ -134,9 +135,9 @@ export function SettingsPage() {
           {(counts?.demo ?? 0) > 0 && (
             <Button
               variant="danger"
-              onClick={() => void toast.run(removeDemoInventory, `${counts?.demo} ingrédient(s) de démo retiré(s).`)}
+              onClick={() => void toast.run(removeDemoInventory, `${counts?.demo} élément(s) de démo retiré(s).`)}
             >
-              Retirer les {counts?.demo} ingrédients de démo
+              Retirer les {counts?.demo} éléments de démo
             </Button>
           )}
         </div>
@@ -170,7 +171,7 @@ export function SettingsPage() {
         <h2 className="text-lg font-semibold">Zone sensible</h2>
         {confirmClear ? (
           <div className="mt-2">
-            <p className="font-semibold">Effacer définitivement l’inventaire, les basiques et les recettes enregistrées ?</p>
+            <p className="font-semibold">Effacer définitivement l’inventaire, les restes, l’historique, les basiques et les recettes enregistrées ?</p>
             <p className="text-sm text-muted">Pensez à exporter une sauvegarde avant.</p>
             <div className="mt-3 flex gap-2">
               <Button variant="secondary" className="flex-1" onClick={() => setConfirmClear(false)}>

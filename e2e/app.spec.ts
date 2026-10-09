@@ -200,7 +200,7 @@ test('données de démo : priorités, sécurité, recettes enregistrées', async
   await expect(page.getByRole('heading', { name: 'Mes recettes enregistrées' })).toBeVisible()
 
   await nav(page, 'Réglages').click()
-  await page.getByRole('button', { name: /Retirer les \d+ ingrédients de démo/ }).click()
+  await page.getByRole('button', { name: /Retirer les \d+ éléments de démo/ }).click()
   await nav(page, 'Accueil').click()
   await expect(page.getByText('Votre inventaire est vide')).toBeVisible()
 })

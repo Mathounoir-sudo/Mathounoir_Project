@@ -1,7 +1,8 @@
 import type { InventoryInput, InventoryItem } from '../domain/types'
 import { adjustQuantity } from '../domain/quantity'
 import { todayISO } from '../domain/dates'
-import { demoInventory } from '../data/demo-inventory'
+import { demoInventory, demoLeftovers } from '../data/demo-inventory'
+import { buildLeftover } from './leftovers'
 import { db as defaultDb, type MijoteDB } from '../lib/db'
 import { UserFacingError, withStorage } from '../lib/errors'
 
@@ -71,21 +72,39 @@ export async function getAllItems(database: MijoteDB = defaultDb): Promise<Inven
 
 /** Ajoute les ingrédients fictifs de démonstration. Renvoie le nombre ajouté. */
 export async function loadDemoInventory(database: MijoteDB = defaultDb, today = todayISO()): Promise<number> {
-  return withStorage('charger les données de démonstration', async () => {
-    const now = new Date().toISOString()
-    const items = demoInventory(today).map((input) => build(input, 'demo', now))
-    await database.pantry.bulkAdd(items)
-    return items.length
-  })
+  return withStorage('charger les données de démonstration', () =>
+    database.transaction('rw', database.pantry, database.leftovers, async () => {
+      const now = new Date().toISOString()
+      const items = demoInventory(today).map((input) => build(input, 'demo', now))
+      const leftovers = demoLeftovers(today).map((input) => buildLeftover(input, { source: 'demo' }, now))
+      await database.pantry.bulkAdd(items)
+      await database.leftovers.bulkAdd(leftovers)
+      return items.length + leftovers.length
+    }),
+  )
 }
 
-/** Retire uniquement les ingrédients de démonstration ; ceux saisis par l'utilisateur restent. */
+/** Retire uniquement les ingrédients et restes de démonstration ; ceux saisis par l'utilisateur restent. */
 export async function removeDemoInventory(database: MijoteDB = defaultDb): Promise<number> {
   return withStorage('retirer les données de démonstration', () =>
-    database.pantry.filter((i) => i.source === 'demo').delete(),
+    database.transaction('rw', database.pantry, database.leftovers, async () => {
+      const items = await database.pantry.filter((i) => i.source === 'demo').delete()
+      const leftovers = await database.leftovers.filter((l) => l.source === 'demo').delete()
+      return items + leftovers
+    }),
   )
 }
 
 export async function clearInventory(database: MijoteDB = defaultDb): Promise<void> {
   return withStorage('vider l’inventaire', () => database.pantry.clear())
+}
+
+/** Efface les restes et l'historique des préparations (utilisé par « Effacer toutes mes données »). */
+export async function clearLeftoversAndHistory(database: MijoteDB = defaultDb): Promise<void> {
+  return withStorage('effacer les restes', () =>
+    database.transaction('rw', database.leftovers, database.preparations, async () => {
+      await database.leftovers.clear()
+      await database.preparations.clear()
+    }),
+  )
 }

@@ -1,9 +1,12 @@
 import { TriangleAlert } from 'lucide-react'
-import { useStoredInventory } from '../hooks/useData'
+import { useStoredInventory, useStoredLeftovers } from '../hooks/useData'
 
-/** Signale les ingrédients enregistrés que cette version ne sait pas lire (ils restent stockés, rien n'est supprimé). */
-export function UnreadableNotice() {
-  const unreadable = useStoredInventory()?.unreadable ?? []
+/** Signale les ingrédients (ou restes) enregistrés que cette version ne sait pas lire (ils restent stockés, rien n'est supprimé). */
+export function UnreadableNotice({ source = 'inventory' }: { source?: 'inventory' | 'leftovers' }) {
+  const inventory = useStoredInventory()?.unreadable
+  const leftovers = useStoredLeftovers()?.unreadable
+  const unreadable = (source === 'inventory' ? inventory : leftovers) ?? []
+  const noun = source === 'inventory' ? 'ingrédient' : 'reste'
   if (unreadable.length === 0) return null
   const n = unreadable.length
   return (
@@ -11,8 +14,8 @@ export function UnreadableNotice() {
       <p className="flex items-start gap-2 font-semibold text-warn">
         <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         {n > 1
-          ? `${n} ingrédients enregistrés n’ont pas pu être lus et ne sont pas affichés.`
-          : '1 ingrédient enregistré n’a pas pu être lu et n’est pas affiché.'}
+          ? `${n} ${noun}s enregistrés n’ont pas pu être lus et ne sont pas affichés.`
+          : `1 ${noun} enregistré n’a pas pu être lu et n’est pas affiché.`}
       </p>
       <p className="mt-1">
         {n > 1 ? 'Ils restent' : 'Il reste'} stocké{n > 1 ? 's' : ''} sur cet appareil : rien n’a été supprimé ni modifié.

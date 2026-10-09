@@ -10,7 +10,9 @@
  *   sinon, ou si la quantité est inconnue, la ligne est « à confirmer », jamais « suffisante » ;
  * - les basiques (sel, huile…) ne comptent que si l'utilisateur les a confirmés ;
  * - un produit à DLC dépassée, à date de type inconnu dépassée, ou épuisé n'est jamais utilisé ;
- * - les entrées en double sont additionnées, chacune une seule fois.
+ * - les entrées en double sont additionnées, chacune une seule fois ;
+ * - les restes (phase 3) arrivent comme produits en stock à l'état « leftover », reliés à un ingrédient
+ *   CUISINÉ du catalogue (riz cuit…) : ils ne remplacent jamais un ingrédient cru, et inversement.
  */
 import type { CatalogIngredient, InventoryItem, Recipe, RecipeIngredient, Unit } from './types'
 import { computePriority, type Priority } from './priority'
@@ -83,6 +85,8 @@ export interface RecipeEvaluation {
   toConfirm: LineEvaluation[]
   /** Produits de l'inventaire utilisés (chacun une seule fois). */
   usedItems: InventoryItem[]
+  /** Parmi les produits utilisés, les restes (état « leftover »). */
+  leftoversUsed: InventoryItem[]
   /** Produits utilisés qui sont prioritaires (à écouler), avec leur priorité. */
   priorityItems: { item: InventoryItem; priority: Priority }[]
   totalMinutes: number
@@ -266,7 +270,20 @@ export function evaluateRecipe(recipe: Recipe, pantry: Pantry, ctx: EngineContex
     .filter(({ priority }) => priority && (priority.level === 'high' || priority.level === 'medium'))
     .sort((a, b) => b.priority.score - a.priority.score || a.item.name.localeCompare(b.item.name, 'fr'))
 
-  return { recipe, servings, servingsLocked, lines, feasibility, toBuy, toConfirm, usedItems, priorityItems, totalMinutes: totalMinutes(recipe) }
+  const leftoversUsed = usedItems.filter((i) => i.status === 'leftover')
+  return {
+    recipe,
+    servings,
+    servingsLocked,
+    lines,
+    feasibility,
+    toBuy,
+    toConfirm,
+    usedItems,
+    leftoversUsed,
+    priorityItems,
+    totalMinutes: totalMinutes(recipe),
+  }
 }
 
 // ─── Classement ───────────────────────────────────────────────────────────────
@@ -281,15 +298,17 @@ export function priorityWeight(e: RecipeEvaluation): number {
 /**
  * Ordre de classement, critère par critère (le suivant ne sert qu'en cas d'égalité) :
  * 1. faisabilité : faisable > à confirmer > courses nécessaires (jamais l'inverse) ;
- * 2. produits prioritaires utilisés (haute = 2 points, moyenne = 1) ;
- * 3. moins d'ingrédients à acheter ;
- * 4. moins d'ingrédients à confirmer ;
- * 5. temps total le plus court ;
- * 6. identifiant de la recette (ordre stable pour des entrées identiques).
+ * 2. nombre de restes utilisés (consommer ce qui est déjà cuisiné passe en premier) ;
+ * 3. produits prioritaires utilisés (haute = 2 points, moyenne = 1) ;
+ * 4. moins d'ingrédients à acheter ;
+ * 5. moins d'ingrédients à confirmer ;
+ * 6. temps total le plus court ;
+ * 7. identifiant de la recette (ordre stable pour des entrées identiques).
  */
 export function compareEvaluations(a: RecipeEvaluation, b: RecipeEvaluation): number {
   return (
     TIER[b.feasibility] - TIER[a.feasibility] ||
+    b.leftoversUsed.length - a.leftoversUsed.length ||
     priorityWeight(b) - priorityWeight(a) ||
     a.toBuy.length - b.toBuy.length ||
     a.toConfirm.length - b.toConfirm.length ||
@@ -340,7 +359,19 @@ export function describeLine(l: LineEvaluation): string {
 /** Raison courte de la priorité d'un produit, sans rien inventer. */
 export function shortPriorityReason(item: InventoryItem, priority: Priority, today: string): string {
   if (item.dateLabel) {
-    const kind = item.dateLabel.kind === 'use-by' ? 'DLC' : item.dateLabel.kind === 'best-before' ? 'DDM' : 'date'
+    // Pour un reste, la date est fixée par l'utilisateur : on ne parle pas de DLC / DDM d'emballage.
+    const kind =
+      item.status === 'leftover'
+        ? item.dateLabel.kind === 'use-by'
+          ? 'limite'
+          : item.dateLabel.kind === 'best-before'
+            ? 'date indicative'
+            : 'date'
+        : item.dateLabel.kind === 'use-by'
+          ? 'DLC'
+          : item.dateLabel.kind === 'best-before'
+            ? 'DDM'
+            : 'date'
     const days = daysUntil(item.dateLabel.date, today)
     return days < 0 ? `${kind} dépassée` : `${kind} ${relativeDays(days)}`
   }
@@ -363,6 +394,10 @@ export function explain(e: RecipeEvaluation, today: string): string[] {
         .map((l) => `${l.name.toLocaleLowerCase('fr-FR')} → ${l.substitution!.lines.map((s) => s.name.toLocaleLowerCase('fr-FR')).join(' + ')}`)
         .join(', ')}.`,
     )
+  }
+
+  if (e.leftoversUsed.length > 0) {
+    reasons.push(`Utilise tes restes : ${e.leftoversUsed.map((i) => i.name).join(', ')}.`)
   }
 
   if (e.priorityItems.length > 0) {

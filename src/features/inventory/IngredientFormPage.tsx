@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { SearchX, Trash2 } from 'lucide-react'
 import { Button, ButtonLink } from '../../components/Button'
@@ -18,7 +18,13 @@ import { CATEGORIES, DATE_KINDS, LOCATIONS, STATUSES, UNITS, type Category, type
 import { fr } from '../../i18n/fr'
 import { addItem, deleteItem, updateItem } from '../../services/inventory'
 
-const matchers = buildMatchers(CATALOG)
+/**
+ * L'inventaire contient des produits BRUTS : les ingrédients « cuisinés » (riz cuit, soupe…) en sont exclus,
+ * ils se gèrent dans « Mes restes ». Les deux index servent à proposer un lien, et à repérer un nom de reste.
+ */
+const RAW_CATALOG = CATALOG.filter((i) => i.category !== 'prepared')
+const matchers = buildMatchers(RAW_CATALOG)
+const allMatchers = buildMatchers(CATALOG)
 
 const DATE_HELP: Record<(typeof DATE_KINDS)[number], string> = {
   'use-by': 'Après cette date, le produit ne doit plus être consommé.',
@@ -29,6 +35,7 @@ const DATE_HELP: Record<(typeof DATE_KINDS)[number], string> = {
 function toValues(item?: InventoryItem): InventoryFormValues {
   return {
     ingredientId: item ? (resolveLink(item, matchers)?.ingredientId ?? '') : '',
+    // (un ancien lien vers un ingrédient cuisiné n'est pas proposé : resolveLink utilise l'index des produits bruts)
     name: item?.name ?? '',
     category: item?.category ?? 'other',
     quantity: item?.quantity?.toString().replace('.', ',') ?? '',
@@ -112,7 +119,7 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
 
   const autoLink = useMemo(() => linkIngredient(values.name, matchers), [values.name])
   const suggestions = useMemo(
-    () => (showSuggestions ? searchCatalog(values.name, CATALOG).filter((s) => s.name !== values.name) : []),
+    () => (showSuggestions ? searchCatalog(values.name, RAW_CATALOG).filter((s) => s.name !== values.name) : []),
     [values.name, showSuggestions],
   )
 
@@ -138,6 +145,11 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
     setLink(id)
     setShowSuggestions(false)
   }
+
+  const looksCooked = useMemo(
+    () => CATALOG_BY_ID.get(linkIngredient(values.name, allMatchers)?.ingredientId ?? '')?.category === 'prepared',
+    [values.name],
+  )
 
   const linkHint = !values.ingredientId
     ? 'Aucun : ce produit sera enregistré, mais pas utilisé dans les suggestions de recettes.'
@@ -228,6 +240,15 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
             </div>
           </Field>
 
+          {looksCooked && !item && (
+            <p role="status" className="rounded-2xl bg-warn-soft px-4 py-3 text-sm">
+              Cela ressemble à un plat ou un aliment déjà cuisiné. Pour ne pas le confondre avec un produit cru,{' '}
+              <Link to="/inventaire/restes/nouveau" className="font-semibold text-primary underline">
+                ajoutez-le plutôt dans « Mes restes »
+              </Link>
+              .
+            </p>
+          )}
           <Field id="ingredientId" label="Ingrédient correspondant (pour les recettes)" error={errors.ingredientId} hint={linkHint}>
             <select
               {...describedBy('ingredientId', errors.ingredientId, true)}
@@ -236,9 +257,9 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
               onChange={(e) => setLink(e.target.value)}
             >
               <option value="">Aucun</option>
-              {CATEGORIES.filter((c) => CATALOG.some((i) => i.category === c)).map((c) => (
+              {CATEGORIES.filter((c) => RAW_CATALOG.some((i) => i.category === c)).map((c) => (
                 <optgroup key={c} label={fr.category[c]}>
-                  {CATALOG.filter((i) => i.category === c).map((i) => (
+                  {RAW_CATALOG.filter((i) => i.category === c).map((i) => (
                     <option key={i.id} value={i.id}>
                       {i.name}
                     </option>
@@ -293,7 +314,8 @@ function IngredientForm({ item }: { item?: InventoryItem }) {
           <fieldset>
             <legend className="mb-2 text-sm font-semibold">État</legend>
             <div className="flex flex-wrap gap-2">
-              {STATUSES.map((s) => (
+              {/* « Reste cuisiné » : géré dans « Mes restes » depuis la phase 3 (proposé seulement pour un ancien produit). */}
+              {STATUSES.filter((s) => s !== 'leftover' || values.status === 'leftover').map((s) => (
                 <button key={s} type="button" aria-pressed={values.status === s} className={chip(values.status === s)} onClick={() => set('status', s)}>
                   {fr.status[s]}
                 </button>

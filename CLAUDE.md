@@ -1,7 +1,7 @@
 # Mijoté — notes pour l'assistant
 
 PWA React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + Zod, 100 % locale (Dexie/IndexedDB), en français.
-Cahier des charges par phases : phases 1 et 2 terminées (voir README). Ne pas commencer une phase avant que la précédente passe ses tests.
+Cahier des charges par phases : phases 1, 2 et 3 terminées (voir README). Ne pas commencer une phase avant que la précédente passe ses tests.
 L'utilisateur débute : expliquer simplement, en français, et travailler par petites étapes testées.
 
 ## Vérifications avant chaque commit
@@ -17,6 +17,10 @@ L'utilisateur débute : expliquer simplement, en français, et travailler par pe
 - Moteur de recettes : `src/domain/recipe-engine.ts`, déterministe. Pas de correspondance floue (seulement lien confirmé,
   nom/synonyme exact, ou « probable » = à confirmer) ; pas de conversion masse ↔ volume ; quantité inconnue ≠ suffisante ;
   une recette moins faisable ne passe jamais devant une plus faisable.
+- Restes : table `leftovers` séparée de l'inventaire, reliés seulement à un ingrédient de catégorie `prepared`
+  (cru ≠ cuit). Aucune durée de conservation calculée ; date de préparation ≠ date limite.
+- Préparations : `recordPreparation` = une transaction (pantry + leftovers + preparations), identifiant unique
+  anti-doublon, stock relu dans la transaction ; jamais de stock négatif ni de déduction sur quantité inconnue.
 - Erreurs de stockage : passer par `withStorage` (messages en français) et `useToast().run`.
 - Schéma Dexie : ajouter une nouvelle `version(N+1)` avec migration, ne jamais modifier une version existante.
 - Les `id` d'ingrédients et de recettes sont stables : ne pas les renommer.

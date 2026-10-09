@@ -10,6 +10,7 @@ import { QuantityStepper } from '../../components/QuantityStepper'
 import { Segmented } from '../../components/Segmented'
 import { inputClasses } from '../../components/Field'
 import { UnreadableNotice } from '../../components/UnreadableNotice'
+import { InventoryTabs } from './InventoryTabs'
 import { useToast } from '../../components/Toast'
 import { useInventory, useStaples } from '../../hooks/useData'
 import { computePriority, type Priority } from '../../domain/priority'
@@ -55,6 +56,7 @@ export function InventoryPage() {
         subtitle={inventory.length === 0 ? 'Ce que vous avez à la maison' : `${inventory.length} ingrédient${inventory.length > 1 ? 's' : ''} suivi${inventory.length > 1 ? 's' : ''}`}
       />
 
+      <InventoryTabs />
       <UnreadableNotice />
       <StaplesCard />
 

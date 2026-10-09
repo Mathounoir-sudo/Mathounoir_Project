@@ -78,6 +78,9 @@ export function RecipeDetailPage() {
           lockedAt={recipe.scalable ? undefined : recipe.servings}
           onChange={(n) => void toast.run(() => setServings(n))}
         />
+        <ButtonLink to={`/recettes/${recipe.id}/preparer`} size="lg" className="w-full" icon={<CookingPot className="size-5" aria-hidden="true" />}>
+          Je cuisine cette recette
+        </ButtonLink>
         <Button
           variant={isFavorite ? 'primary' : 'secondary'}
           className="w-full"

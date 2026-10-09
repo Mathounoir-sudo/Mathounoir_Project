@@ -26,7 +26,10 @@ export function RecipeCard({ evaluation: e, reasons, compact = false }: Props) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="font-display text-lg font-semibold leading-snug">{recipe.title}</p>
-          <Badge tone={status.tone}>{status.label}</Badge>
+          <span className="flex shrink-0 flex-col items-end gap-1">
+            <Badge tone={status.tone}>{status.label}</Badge>
+            {e.leftoversUsed.length > 0 && <Badge tone="primary">Utilise tes restes</Badge>}
+          </span>
         </div>
         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
           <span className="inline-flex items-center gap-1">

@@ -37,6 +37,7 @@ const recipe = (id: string, ingredients: RecipeIngredient[], extra: Partial<Reci
   storage: null,
   safety: [],
   tags: [],
+  yields: null,
   ...extra,
 })
 
@@ -219,7 +220,7 @@ describe('portions', () => {
 
 describe('remplacements', () => {
   const gratin = DEMO_RECIPES_RAW.find((r) => r.id === 'gratin-pates')!
-  const base = [have('pates', 500, 'g'), have('fromage-rape', 100, 'g')]
+  const base = [have('pates-cuites', 500, 'g'), have('fromage-rape', 100, 'g')]
 
   it('un ingrédient obligatoire remplaçable n’est pas exigé si le remplacement est disponible', () => {
     const e = evaluateOne(gratin, [...base, have('lait', 50, 'cl'), have('oeuf', 2, 'unité')], ctx({ servings: 2, staples: new Set(['sel']) }))
@@ -300,7 +301,7 @@ describe('recommandations', () => {
 
 describe('pickVaried', () => {
   it('ne fait jamais passer la variété avant la faisabilité', () => {
-    const inventory = [have('pates', 1, 'kg'), have('tomate', 8, 'unité'), have('creme', 30, 'cl'), have('fromage-rape', 200, 'g')]
+    const inventory = [have('pates', 1, 'kg'), have('pates-cuites', 500, 'g'), have('tomate', 8, 'unité'), have('creme', 30, 'cl'), have('fromage-rape', 200, 'g')]
     const all = recommend(DEMO_RECIPES_RAW, inventory, ctx({ staples: new Set(['sel', 'huile']), servings: 2 })).all
     const ready = all.filter((e) => e.feasibility === 'ready')
     // Les deux recettes de pâtes sont faisables : elles passent avant toute recette demandant des courses.
@@ -308,5 +309,52 @@ describe('pickVaried', () => {
     const picked = pickVaried(all, 3)
     expect(picked.slice(0, 2).every((e) => e.feasibility === 'ready')).toBe(true)
     expect(compareEvaluations(picked[0]!, picked[1]!)).toBeLessThan(0)
+  })
+})
+
+describe('restes (phase 3)', () => {
+  const staples = new Set(['sel', 'huile', 'eau'])
+  const riceLeftover = (quantity: number, extra: Partial<InventoryItem> = {}) =>
+    makeItem({ id: `reste-${++n}`, name: 'Reste de riz', ingredientId: 'riz-cuit', quantity, unit: 'g', status: 'leftover', openedOn: '2026-03-29', ...extra })
+  const others = () => [have('oeuf', 6, 'unité'), have('sauce-soja', 20, 'cl')]
+  const rizSaute = DEMO_RECIPES_RAW.find((r) => r.id === 'riz-saute')!
+
+  it('du riz CRU ne remplace pas le riz cuit demandé par une recette', () => {
+    const e = evaluateOne(rizSaute, [have('riz', 1, 'kg'), ...others()], ctx({ staples }))
+    expect(line(e, 'riz-cuit').status).toBe('missing')
+    expect(e.evaluation.feasibility).toBe('shopping')
+  })
+
+  it('un reste de riz cuit ne compte pas comme du riz cru', () => {
+    const curry = recipe('curry-cru', [{ ingredientId: 'riz', quantity: 100, unit: 'g' }])
+    expect(line(evaluateOne(curry, [riceLeftover(500)], ctx()), 'riz').status).toBe('missing')
+  })
+
+  it('propose une recette compatible avec un reste et l’indique', () => {
+    const { recommendations } = recommend(DEMO_RECIPES_RAW, [riceLeftover(200), ...others()], ctx({ staples }))
+    const top = recommendations[0]!
+    expect(top.evaluation.recipe.id).toBe('riz-saute')
+    expect(top.evaluation.leftoversUsed.map((i) => i.name)).toEqual(['Reste de riz'])
+    expect(top.reasons).toContain('Utilise tes restes : Reste de riz.')
+  })
+
+  it('à faisabilité égale, les recettes qui utilisent des restes passent devant', () => {
+    const inventory = [riceLeftover(200), ...others(), have('fromage-rape', 100, 'g')]
+    const ranked = recommend(DEMO_RECIPES_RAW, inventory, ctx({ staples })).ranked.filter((r) => r.evaluation.feasibility === 'ready')
+    expect(ranked[0]!.evaluation.leftoversUsed.length).toBeGreaterThan(0)
+  })
+
+  it('un reste insuffisant n’est jamais déclaré suffisant ; le mode strict l’exclut', () => {
+    const r = recommend(DEMO_RECIPES_RAW, [riceLeftover(50), ...others()], ctx({ staples, strict: true }))
+    expect(r.recommendations.map((x) => x.evaluation.recipe.id)).not.toContain('riz-saute')
+    const excluded = r.excluded.find((x) => x.evaluation.recipe.id === 'riz-saute')!
+    expect(excluded.reasons[0]).toBe('À acheter : riz cuit (il manque 100 g).')
+  })
+
+  it('un reste dont la limite de sécurité est dépassée n’est jamais utilisé', () => {
+    const expired = riceLeftover(200, { dateLabel: { kind: 'use-by', date: '2026-03-29' } })
+    const e = evaluateOne(rizSaute, [expired, ...others()], ctx({ staples }))
+    expect(line(e, 'riz-cuit').status).toBe('missing')
+    expect(e.reasons.join(' ')).toMatch(/Reste de riz n’est pas utilisé/)
   })
 })

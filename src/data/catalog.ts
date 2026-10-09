@@ -56,7 +56,7 @@ export const CATALOG: CatalogIngredient[] = [
   // Féculents
   { id: 'pain', name: 'Pain', category: 'starch', aliases: ['pain rassis', 'baguette', 'pain de mie'] },
   { id: 'pates', name: 'Pâtes', category: 'starch', aliases: ['spaghetti', 'penne', 'coquillette', 'farfalle', 'tagliatelle'] },
-  { id: 'riz', name: 'Riz', category: 'starch', aliases: ['riz cuit', 'reste de riz'] },
+  { id: 'riz', name: 'Riz', category: 'starch', aliases: ['riz cru', 'riz basmati', 'riz rond'] },
   { id: 'semoule', name: 'Semoule', category: 'starch', aliases: ['couscous', 'boulgour', 'quinoa'] },
   { id: 'farine', name: 'Farine', category: 'grocery' },
   { id: 'pate-a-tarte', name: 'Pâte à tarte', category: 'starch', aliases: ['pate brisee', 'pate feuilletee'] },
@@ -65,7 +65,7 @@ export const CATALOG: CatalogIngredient[] = [
   // Viandes et poissons
   { id: 'jambon', name: 'Jambon', category: 'meat-fish' },
   { id: 'lardons', name: 'Lardons', category: 'meat-fish', aliases: ['bacon'] },
-  { id: 'poulet', name: 'Poulet', category: 'meat-fish', aliases: ['reste de poulet', 'blanc de poulet'] },
+  { id: 'poulet', name: 'Poulet', category: 'meat-fish', aliases: ['blanc de poulet', 'poulet cru', 'cuisse de poulet'] },
   { id: 'viande-hachee', name: 'Viande hachée', category: 'meat-fish', aliases: ['steak hache', 'boeuf hache'] },
   { id: 'thon', name: 'Thon', category: 'meat-fish', aliases: ['thon en boite'] },
   { id: 'saumon', name: 'Saumon', category: 'meat-fish' },
@@ -75,6 +75,14 @@ export const CATALOG: CatalogIngredient[] = [
   { id: 'lentilles', name: 'Lentilles', category: 'legume', aliases: ['lentille corail'] },
   { id: 'pois-chiches', name: 'Pois chiches', category: 'legume' },
   { id: 'haricots-rouges', name: 'Haricots rouges', category: 'legume', aliases: ['haricot blanc'] },
+
+  // Plats et restes cuisinés (phase 3) : jamais confondus avec les produits crus ci-dessus.
+  { id: 'riz-cuit', name: 'Riz cuit', category: 'prepared', aliases: ['reste de riz'] },
+  { id: 'pates-cuites', name: 'Pâtes cuites', category: 'prepared', aliases: ['reste de pates'] },
+  { id: 'legumes-cuits', name: 'Légumes cuits', category: 'prepared', aliases: ['legumes rotis', 'reste de legumes', 'poelee de legumes'] },
+  { id: 'poulet-cuit', name: 'Poulet cuit', category: 'prepared', aliases: ['reste de poulet', 'poulet roti'] },
+  { id: 'soupe', name: 'Soupe', category: 'prepared', aliases: ['potage', 'veloute', 'reste de soupe'] },
+  { id: 'puree', name: 'Purée', category: 'prepared', aliases: ['puree de pomme de terre', 'reste de puree'] },
 
   // Épicerie
   { id: 'sucre', name: 'Sucre', category: 'grocery', aliases: ['sucre roux', 'cassonade'] },

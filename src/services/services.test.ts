@@ -17,6 +17,7 @@ import {
 import { getServings, getStaples, setServings, toggleStaple } from './preferences'
 import { findRecipe, getFavorites, RECIPE_CATALOG, toggleFavorite, validateRecipes } from './recipes'
 import { exportBackup, readBackup, restoreBackup } from './backup'
+import { buildLeftover } from './leftovers'
 
 const opened: MijoteDB[] = []
 let counter = 0
@@ -94,11 +95,18 @@ describe('inventaire', () => {
   it('charge puis retire uniquement les données de démonstration', async () => {
     const db = freshDb()
     await addItem(input({ name: 'Mon fromage' }), db)
+    await db.leftovers.add(
+      buildLeftover({ name: 'Mon reste', ingredientId: null, quantity: 1, unit: 'portion', preparedOn: '2026-03-29', limit: null, note: null }, { source: 'manual' }),
+    )
     const n = await loadDemoInventory(db, '2026-03-30')
-    expect(n).toBeGreaterThan(5)
-    expect(await getAllItems(db)).toHaveLength(n + 1)
+    const demoItems = (await getAllItems(db)).filter((i) => i.source === 'demo').length
+    const demoLeftovers = (await db.leftovers.toArray()).filter((l) => l.source === 'demo')
+    expect(demoItems).toBeGreaterThan(5)
+    expect(demoLeftovers.map((l) => [l.name, l.ingredientId])).toEqual([['Reste de riz', 'riz-cuit']])
+    expect(n).toBe(demoItems + 1)
     await removeDemoInventory(db)
     expect((await getAllItems(db)).map((i) => i.name)).toEqual(['Mon fromage'])
+    expect((await db.leftovers.toArray()).map((l) => l.name)).toEqual(['Mon reste'])
   })
 
   it('vide l’inventaire', async () => {

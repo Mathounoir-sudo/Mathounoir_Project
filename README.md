@@ -7,7 +7,7 @@ Application web mobile **installable** (PWA) de cuisine anti-gaspillage pour les
 
 Inventaire → Priorités → Recette faisable → Cuisiner → Restes → Recommencer.
 
-## État actuel : phase 2 (moteur de recettes)
+## État actuel : phase 3 (restes et suivi anti-gaspillage)
 
 | Fonctionnalité | État |
 |---|---|
@@ -24,9 +24,13 @@ Inventaire → Priorités → Recette faisable → Cuisiner → Restes → Recom
 | Détail recette : quantités, matériel, étapes avec feu / four, remplacements, intérêt anti-gaspi | ✅ phase 2 |
 | Recettes enregistrées (favoris), sauvegarde / restauration JSON, démo retirable | ✅ |
 | Hors connexion, installable, mise à jour signalée | ✅ |
+| Restes : écran « Mes restes » (onglet de l'Inventaire), ajout, quantité, mangé / jeté, historique | ✅ phase 3 |
+| Parcours « Je cuisine cette recette » : portions, quantités réellement utilisées, restes conservés | ✅ phase 3 |
+| Déduction de l'inventaire confirmée, atomique et sans double déduction | ✅ phase 3 |
+| Ingrédients cuisinés distincts des crus (riz cuit ≠ riz) ; recettes qui utilisent les restes en avant | ✅ phase 3 |
 | **Reconnaissance photo** | ⏳ Non configurée : l'écran l'explique et propose la saisie manuelle |
 | **Génération de recettes par IA** | ⏳ Non configurée : 12 recettes de démonstration fixes |
-| Mode cuisine (étapes à cocher, minuteurs), suivi des restes et historique des mouvements | ⏳ À venir |
+| Mode cuisine (étapes à cocher, minuteurs), notifications | ⏳ À venir |
 | Exclusions / allergies | ⏳ À venir — aucune recette n'est présentée comme sans allergène |
 | Compte, synchronisation (Supabase) | ⏳ Phase 4 |
 
@@ -77,10 +81,55 @@ passer une recette moins faisable devant une autre. En mode strict, les recettes
 **Recettes** : `src/data/demo-recipes.ts`, validées par `recipeSchema` avant affichage. Une future source (IA par
 exemple) devra passer par la même validation (`validateRecipes`) : l'interface ne dépend d'aucun fournisseur.
 
+## Restes et préparations (phase 3)
+
+**Modèle** (`src/domain/types.ts`, `src/domain/leftovers.ts`)
+- Un **reste** (`Leftover`) est un aliment ou un plat déjà cuisiné, rangé dans sa propre table (`leftovers`),
+  séparée de l'inventaire des produits bruts. Il a : un nom, une quantité et une unité (souvent des portions),
+  une **date de préparation** (qui n'est jamais une date limite), une **date limite facultative fixée par
+  l'utilisateur** — « de sécurité » (traitée comme une DLC) ou « indicative » (traitée comme une DDM) —,
+  un statut (disponible, consommé, jeté), une note, et la recette d'origine le cas échéant.
+- Un reste n'est relié qu'à un ingrédient **cuisiné** du catalogue (catégorie « Plats et restes cuisinés » :
+  riz cuit, pâtes cuites, légumes cuits, poulet cuit, soupe, purée), ou à rien (plat non réutilisable).
+  Un reste de riz n'est donc jamais confondu avec du riz cru, et une soupe jamais avec des légumes crus.
+- Mijoté ne calcule **aucune durée de conservation** : sans date limite saisie, il l'indique.
+- Une **préparation** (`Preparation`, table `preparations`) garde l'historique : recette, portions préparées et
+  mangées, quantités retirées de chaque produit, reste créé.
+
+**Parcours « Je cuisine cette recette »** (`/recettes/:id/preparer/:idPréparation`)
+1. Portions préparées.
+2. Ingrédients nécessaires (avec leur disponibilité).
+3. Quantités réellement utilisées, produit par produit : « Déduire » (quantité modifiable, dans l'unité du
+   produit), « Il n'en reste plus », ou « Ne rien déduire ». Les quantités proposées ne sont qu'une
+   suggestion ; rien n'est retiré avant l'enregistrement. Impossible de déduire plus que le stock connu ;
+   une quantité inconnue ne peut pas être « réduite » (choix explicite obligatoire).
+4. Portions mangées, et reste à garder : quantité saisie par l'utilisateur (Mijoté ne transforme jamais
+   « 200 g de riz cru » en « 200 g de riz cuit »).
+
+**Cohérence et doublons** (`src/services/preparations.ts`)
+- Tout est écrit dans **une seule transaction IndexedDB** (inventaire + restes + historique) : tout ou rien.
+- Le stock est **relu dans la transaction** : une quantité modifiée entre-temps est revérifiée.
+- L'identifiant de la préparation est créé à l'ouverture du formulaire et placé dans l'adresse. S'il existe déjà
+  (double clic, nouvelle tentative, rechargement), rien n'est déduit une seconde fois.
+- Un reste entièrement utilisé par une recette passe à « consommé ».
+
+**Moteur de recettes** : les restes disponibles sont ajoutés au stock comme ingrédients cuisinés. Critère de
+classement n°2 (après la faisabilité) : nombre de restes utilisés ; les cartes affichent « Utilise tes restes ».
+Le mode strict reste inchangé : un reste insuffisant n'est jamais déclaré suffisant.
+
+**Migration** : la base passe en **version 3**. Les tables `leftovers` et `preparations` sont ajoutées, et les
+anciens produits d'inventaire marqués « Reste cuisiné » y sont **déplacés** (dans la même transaction de mise à
+niveau : tout ou rien), reliés à l'équivalent cuisiné (riz → riz cuit). Un ancien enregistrement incomplet reste
+dans l'inventaire au lieu de bloquer la migration. Les sauvegardes passent en v3 (restes et historique inclus) ;
+les fichiers v1 et v2 restent lisibles.
+
 ### Limites connues
 
-- Le catalogue ne distingue pas un ingrédient cru d'un ingrédient cuit : des pâtes sèches comptent pour
-  « pâtes déjà cuites ». La note de la recette l'indique, mais la quantité n'est pas convertie.
+- Seuls six ingrédients cuisinés sont au catalogue (riz, pâtes, légumes, poulet, soupe, purée) : un autre
+  plat est suivi comme reste, mais n'est proposé dans aucune recette.
+- Les restes ne sont pas rangés par lieu (réfrigérateur, congélateur) et ne déclenchent pas de notification.
+- Annuler une préparation n'est pas possible automatiquement : il faut corriger les quantités à la main.
+- Un basique coché (sel, huile…) n'est pas déduit, faute de quantité suivie.
 - Un basique coché n'a pas de quantité suivie.
 - Les produits enregistrés avant la phase 2 gardent un lien recalculé depuis leur nom tant qu'ils ne sont pas
   ré-enregistrés (ouvrir le produit et l'enregistrer confirme son ingrédient correspondant).

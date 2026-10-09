@@ -1,4 +1,4 @@
-import type { Category, DateKind, Location, Status } from '../domain/types'
+import type { Category, DateKind, LeftoverStatus, Location, Status } from '../domain/types'
 
 /** Libellés français des codes internes. Une autre langue = un autre fichier de même forme. */
 export const fr = {
@@ -12,6 +12,7 @@ export const fr = {
     legume: 'Légumineuses',
     grocery: 'Épicerie',
     staple: 'Basiques',
+    prepared: 'Plats et restes cuisinés',
     other: 'Autres',
   } satisfies Record<Category, string>,
   location: {
@@ -34,5 +35,16 @@ export const fr = {
     'use-by': 'DLC',
     'best-before': 'DDM',
     unspecified: 'Date',
+  } satisfies Record<DateKind, string>,
+  leftoverStatus: {
+    available: 'Disponible',
+    consumed: 'Consommé',
+    discarded: 'Jeté',
+  } satisfies Record<LeftoverStatus, string>,
+  /** Pour un reste, la date est fixée par l'utilisateur (pas d'étiquette d'emballage). */
+  leftoverLimit: {
+    'use-by': 'Limite de sécurité (à ne pas dépasser)',
+    'best-before': 'Date indicative (qualité)',
+    unspecified: 'Date sans précision',
   } satisfies Record<DateKind, string>,
 }
