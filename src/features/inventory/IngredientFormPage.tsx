@@ -9,7 +9,8 @@ import { Field, describedBy, inputClasses } from '../../components/Field'
 import { PageHeader } from '../../components/PageHeader'
 import { Toggle } from '../../components/Toggle'
 import { useToast } from '../../components/Toast'
-import { db } from '../../lib/db'
+import { db, categoryOf } from '../../lib/db'
+import { readStoredItems } from '../../domain/stored'
 import { CATALOG, CATALOG_BY_ID } from '../../data/catalog'
 import { buildMatchers, matchIngredient, searchCatalog } from '../../domain/ingredients'
 import { fieldErrors, inventoryFormSchema, type InventoryFormValues } from '../../domain/schemas'
@@ -44,10 +45,30 @@ function toValues(item?: InventoryItem): InventoryFormValues {
 export function IngredientFormPage() {
   const { id } = useParams()
   // [item] : distingue « chargement » (undefined) de « introuvable » ([undefined]).
-  const loaded = useLiveQuery(async () => (id ? [await db.pantry.get(id)] : [undefined]), [id])
+  const loaded = useLiveQuery(async () => {
+    if (!id) return { item: undefined, problem: null }
+    const raw = await db.pantry.get(id)
+    if (raw === undefined) return { item: undefined, problem: null }
+    const { items, unreadable } = readStoredItems([raw], categoryOf)
+    return { item: items[0], problem: unreadable[0]?.problem ?? null }
+  }, [id])
 
   if (loaded === undefined) return <div aria-busy="true" />
-  const [item] = loaded
+  const { item, problem } = loaded
+  if (problem) {
+    return (
+      <>
+        <PageHeader title="Ingrédient illisible" back={{ to: '/inventaire', label: 'Inventaire' }} />
+        <EmptyState
+          icon={<SearchX className="size-7" />}
+          title="Cet ingrédient ne peut pas être ouvert"
+          actions={<ButtonLink to="/inventaire">Retour à l’inventaire</ButtonLink>}
+        >
+          Son enregistrement n’a pas le format attendu ({problem}). Il reste stocké sur cet appareil, rien n’a été modifié.
+        </EmptyState>
+      </>
+    )
+  }
   if (id && !item) {
     return (
       <>

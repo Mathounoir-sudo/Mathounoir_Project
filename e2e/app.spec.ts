@@ -180,3 +180,57 @@ test('installable et utilisable hors connexion', async ({ page, context }) => {
   await expect(page.getByText('Cuisinez quelque chose de bon avec ce que vous avez déjà.')).toBeVisible()
   await context.setOffline(false)
 })
+
+test('une donnée enregistrée inattendue ne fait plus planter l’application et n’est pas supprimée', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Essayer avec la démo' }).click()
+  await expect(page.getByRole('heading', { name: 'À utiliser en priorité' })).toBeVisible()
+
+  // Simule des enregistrements que cette version n'attend pas (date sans valeur, quantité absente).
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('mijote')
+        open.onsuccess = () => {
+          const tx = open.result.transaction('pantry', 'readwrite')
+          const store = tx.objectStore('pantry')
+          const base = { ingredientId: 'yaourt', category: 'dairy', unit: 'unité', location: 'fridge', status: 'unopened', purchasedOn: null, openedOn: null, urgent: false, source: 'manual', confirmed: true, createdAt: 'c', updatedAt: 'u' }
+          store.put({ ...base, id: 'casse-date', name: 'Yaourt cassé', quantity: 1, dateLabel: { kind: 'use-by' } })
+          store.put({ ...base, id: 'casse-quantite', name: 'Riz cassé', dateLabel: null })
+          tx.oncomplete = () => {
+            open.result.close()
+            resolve()
+          }
+          tx.onerror = () => reject(tx.error)
+        }
+      }),
+  )
+
+  for (const route of ['/', '/#/inventaire', '/#/recettes', '/#/recettes/pain-perdu', '/#/inventaire/casse-date']) {
+    await page.goto(route)
+    await expect(page.getByText('Oups, un problème d’affichage')).toHaveCount(0)
+  }
+  await expect(page.getByText('Cet ingrédient ne peut pas être ouvert')).toBeVisible()
+
+  await page.goto('/#/inventaire')
+  await expect(page.getByText('2 ingrédients enregistrés n’ont pas pu être lus et ne sont pas affichés.')).toBeVisible()
+  await page.getByText('Détails techniques').click()
+  await expect(page.getByText(/Yaourt cassé \(casse-date\) — dateLabel\.date/)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Modifier Œufs' })).toBeVisible()
+
+  // Rien n'a été supprimé.
+  const ids = await page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const open = indexedDB.open('mijote')
+        open.onsuccess = () => {
+          const req = open.result.transaction('pantry').objectStore('pantry').getAllKeys()
+          req.onsuccess = () => {
+            open.result.close()
+            resolve(req.result as string[])
+          }
+        }
+      }),
+  )
+  expect(ids).toEqual(expect.arrayContaining(['casse-date', 'casse-quantite']))
+})

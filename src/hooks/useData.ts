@@ -1,13 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../lib/db'
+import { db, categoryOf } from '../lib/db'
 import type { InventoryItem } from '../domain/types'
+import { readStoredItems, type StoredInventory } from '../domain/stored'
 
 /**
  * Données locales, mises à jour automatiquement à chaque modification.
  * `undefined` pendant le chargement initial (quelques millisecondes).
+ * Les ingrédients sont validés à la lecture : un enregistrement illisible est signalé, jamais affiché tel quel.
  */
+export function useStoredInventory(): StoredInventory | undefined {
+  return useLiveQuery(async () => readStoredItems(await db.pantry.toArray(), categoryOf))
+}
+
 export function useInventory(): InventoryItem[] | undefined {
-  return useLiveQuery(() => db.pantry.toArray())
+  return useStoredInventory()?.items
 }
 
 export function useStaples(): Set<string> | undefined {

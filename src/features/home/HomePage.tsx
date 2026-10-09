@@ -13,6 +13,7 @@ import { CATALOG_BY_ID } from '../../data/catalog'
 import { RECIPE_CATALOG, findRecipe } from '../../services/recipes'
 import { loadDemoInventory } from '../../services/inventory'
 import { RecipeCard } from '../recipes/RecipeCard'
+import { UnreadableNotice } from '../../components/UnreadableNotice'
 
 function greeting(now = new Date()) {
   const h = now.getHours()
@@ -40,6 +41,9 @@ export function HomePage() {
     <header className="mb-6">
       <p className="font-display text-[32px] font-semibold leading-tight">{greeting()}</p>
       <p className="mt-1 text-lg text-muted">Cuisinez quelque chose de bon avec ce que vous avez déjà.</p>
+      <div className="mt-4">
+        <UnreadableNotice />
+      </div>
     </header>
   )
 
